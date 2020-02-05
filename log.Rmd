@@ -5,11 +5,12 @@ date: "2/4/2020"
 output: pdf_document
 ---
 
+# QC reports
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{sh}
+```{sh eval=FALSE}
 ls !(*pdf) | grep -P 'sampleidMatcher'
 ```
 returns produced metrics
@@ -24,6 +25,69 @@ returns produced metrics
 * quality_by_cycle_metrics
 * quality_distribution_metrics
 
+
 ## alignment summary metrics
 
 th Picard alignment summary metrics application is a quality control  tool for exome-Seq and RNA-seq aligments
+
+```{r}
+library(knitr)
+picardDocs <- read.csv("data/docs/Picard-AlignmentSummaryStatistics.csv")
+kable(picardDocs, caption = "Alignment summary Statistics documentation")
+
+```
+
+## Bam index stats
+
+includes the counts of aligned and unalligned reads, and reads with no start coordinates.
+
+## flagstat
+[samtools-flagstat](https://www.htslib.org/doc/samtools-flagstat.html)
+
+Provides counts for each of 13 categories based primarily on bit flags in the FLAG field. Each category is broken up into QC pass or QC fail. For example the first row in the flagstat file will look like:
+
+122 + 28 in total (QC-passed reads + QC-failed reads)
+
+which means that of the total 150 reads 122 were marked as QC pass and 28 as QC fail. The other categories are in the same structure
+
+## gc bias metrics
+[picard metric definitions](https://personal.broadinstitute.org/picard/picard_metric_definitions.html)
+Metrics class: GcBiasDetailMetrics: Class that holds detailed metrics about reads that fall within windows of a certain GC bin on the reference genome.
+
+GC: The G+C content of the reference sequence represented by this bin. Values are from 0% to 100%
+WINDOWS: The number of windows on the reference genome that have this G+C content.
+READ_STARTS: The number of reads whose start position is at the start of a window of this GC.
+MEAN_BASE_QUALITY: The mean quality (determined via the error rate) of all bases of all reads that are assigned to windows of this GC.
+NORMALIZED_COVERAGE: The ration of "coverage" in this GC bin vs. the mean coverage of all GC bins. A number of 1 represents mean coverage, a number less than one represents lower than mean coverage (e.g. 0.5 means half as much coverage as average) while a number greater than one represents higher than mean coverage (e.g. 3.1 means this GC bin has 3.1 times more reads per window than average).
+ERROR_BAR_WIDTH: The radius of error bars in this bin based on the number of observations made. For example if the normalized coverage is 0.75 and the error bar width is 0.1 then the error bars would be drawn from 0.65 to 0.85.
+
+## hs_metrics
+[hs_metrics-docs](https://personal.broadinstitute.org/picard/picard_metric_definitions.html#HsMetrics)
+
+## insert size metrics
+Metrics about the insert size distribution of a paired-end library, created by the CollectInsertSizeMetrics program and usually written to a file with the extension ".insert_size_metrics". In addition the insert size distribution is plotted to a file with the extension ".insert_size_Histogram.pdf".
+
+[insert size metrics docs](https://personal.broadinstitute.org/picard/picard_metric_definitions.html#InsertSizeMetrics)
+
+## nonAutosomalRegionChrX_hs_metrics
+hs metrics for Chromosome X
+
+## quality_by_cycle_metrics
+
+This metric gives an overall snapshot of sequencing machine performance. For most types of sequencing data, the output is expected to show a slight reduction in overall base quality scores towards the end of each read. Spikes in quality within reads are not expected and may indicate that technical problems occurred during sequencing
+
+## quality distribution metrics
+This tool is used for determining the overall 'quality' for a library in a given run. To that effect, it outputs a chart and tables indicating the range of quality scores and the total numbers of bases corresponding to those scores. Options include plotting the distribution of all of the reads, only the aligned reads, or reads that have passed the Illumina Chastity filter thresholds as described here.
+
+## files
+```{r}
+prm05 <- read.csv("data/prm05-projects-by-time", header = FALSE, sep = "")
+colnames(prm05) <- c("permissions", "blocks", "user", "group", "size", "month", "day", "time", "name")
+```
+
+# InterOp
+The interop files are binary files produced during a run providing detailed statistics. They are located in the rawdata of a run `run/Info/InterOp`.
+
+
+## CorrectedIntMetricsOut.bin
+Per tile per cycle per channel average intensity values
