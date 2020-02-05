@@ -91,3 +91,25 @@ The interop files are binary files produced during a run providing detailed stat
 
 ## CorrectedIntMetricsOut.bin
 Per tile per cycle per channel average intensity values
+
+## ExtractionMetricsOut.bin
+Per tile per cycle per channel 90th percentile of intensity and FWHM values
+
+## EmpiricalPhasingMetricsOut.bin
+Phasing weights per tile per cycle
+
+## QMetricsOut.bin
+Per tile per cycle subsampled basecall quality score histogram
+
+## TileMetricsOut.bin
+Per tile information about density, cluster count, passed filter, percent aligned
+
+## PFGridMetricsOut.bin
+Not publically documented
+
+## EventMetricsOut.bin
+Not publically documented
+
+## RegistrationMetricsOut.bin 
+Not publically documented
+
