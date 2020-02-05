@@ -1,0 +1,29 @@
+---
+title: "Prediction of analysis success using sequencing quality metrics"
+author: "Jouke Profijt"
+date: "2/4/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{sh}
+ls !(*pdf) | grep -P 'sampleidMatcher'
+```
+returns produced metrics
+
+* alignment_summary_metrics
+* bam_index_stats
+* flagstat
+* gc_bias_metrics
+* hs_metrics
+* insert_size_metrics
+* nonAutosomalRegionChrX_hs_metrics
+* quality_by_cycle_metrics
+* quality_distribution_metrics
+
+## alignment summary metrics
+
+th Picard alignment summary metrics application is a quality control  tool for exome-Seq and RNA-seq aligments
