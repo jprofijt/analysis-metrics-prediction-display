@@ -28,14 +28,84 @@ returns produced metrics
 
 ## alignment summary metrics
 
-th Picard alignment summary metrics application is a quality control  tool for exome-Seq and RNA-seq aligments
+the Picard alignment summary metrics application is a quality control tool for exome-Seq and RNA-seq aligments. it provides lots of metrics.
 
-```{r}
-library(knitr)
-picardDocs <- read.csv("data/docs/Picard-AlignmentSummaryStatistics.csv")
-kable(picardDocs, caption = "Alignment summary Statistics documentation")
+### CATEGORY
+Describes the type of read.
 
-```
+either `UNPAIRED`, `FIRST_OF_PAIR`, `SECOND_OF_PAIR` or `PAIR`. Unpaired means the read is part of a fragmented run. First of pair are reads for only the first read in a paired run, and subsuquently Second of pair are only the second read in a paired run. Pair means the metrics are aggregated for both the first and second reads in a pair.
+
+### PF_READS
+This statistic defines the number of PF reads, where PF means the reads that have passed the illumina filter.
+
+### TOTAL_READS
+Total number of reads including all PF and non-PF reads
+
+### PCT_PF_READS
+The fraction of the reads that have passed the filter/PF reads. `PF_READS/TOTAL_READS`
+
+### PF_NOISE_READS
+The number of PF reads that are marked as noise. These reads are reads entirely composed of A bases and or N bases.
+
+These reads are usally artificially created.
+
+### PF_READS_ALIGNED
+The number of PF reads that were aligned to the reference sequence
+
+### PCT_PF_READS_ALIGNED
+The percentage of PF reads aligned to the reference sequence
+
+### PF_ALIGNED_BASES
+the total number of aligned bases
+
+### PF_HQ_ALIGNED_READS
+The number of PF reads that were aligned to the reference sequence with a mapping quality of Q20 or higher signifying that the aligner estimates a 1/100 chance that the alignment is wrong.
+
+### PF_HQ_ALIGNED_BASES
+the number of bases aligned to the reference sequence in reads that were mapped at a high qualiy. usally aproxomatly `PF_HQ_ALIGNED_READS*READ_LENGHT`
+
+### PF_HQ_ALIGNED_Q20_BASES
+a Subset of `PF_HQ_ALIGNED_BASES` where the base call quality was !20 or higher
+
+### PF_HQ_NEDUAB_MISMATCHES
+The median number of mismatches versus the reference sequence in reads that were aligned to the reference at high quality
+
+### PF_MISMATCH_RATE
+the rate of bases mismatching the refference for all bases aligned to the reference sequence
+
+### PF_HQ_ERROR_RATE
+The fraction of bases that mismatch the reference in PF HQ aligned reads
+
+### PF_INDEL_RATE
+the number of insertion and deletion events per 100 aligned bases. Uses the number of events as the numerator, not the number of inserted or deleted bases
+
+### MEAN_READ_LENGTH
+the mean read lenght of the set of reads examined. When looking at the data for a single lane with equal lenght reads this number is just the read lenght. When looking at data for the merged lanes with differeing read lenghts this is the mean read lenght of all bases.
+
+### READS_ALIGNED_IN_PAIRS
+The number of reads whose mate pair was also aligned to the reference
+
+### PCT_READS_ALIGNED_IN_PAIRS
+The fraction of reads whose mate pair was also aligned to the reference
+
+### PF_READS_IMPROPER_PAIRS
+the number of (primary) aligned reads that are **not** "properly" aligned in pairs
+
+### PCT_PF_READS_IMPROPER_PAIRS
+The fraction of (primary) reads that are *not* "properly" aligned in pairs (as per SAM flag 0x2). PF_READS_IMPROPER_PAIRS / PF_READS_ALIGNED
+
+### BAD_CYCLES
+The number of instrument cycles in which 80% or more of base calls were no-calls
+
+### STRAND_BALANCE
+The number of PF reads aligned to the positive strand of the genome divided by the number of PF reads aligned to the genome.
+
+### PCT_CHIMERAS
+The fraction of reads that map outside of a maximum insert size (usually 100kb) or that have the two ends mapping to different chromosomes.
+
+### PCT_ADAPTER
+The fraction of PF reads that are unaligned and match to a known adapter sequence right from the start of the read.
+
 
 ## Bam index stats
 

@@ -1,4 +1,9 @@
 log.pdf
+.RData
 .idea
 data/
 venv/
+.Rhistory
+*.Rproj
+.Rproj.*
+.Rproj.user
