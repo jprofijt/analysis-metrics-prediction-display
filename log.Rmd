@@ -10,6 +10,27 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Data locations
+
+### Chaperone
+
+* `/groups/umcg-gd/`
+
+#### Results
+* prm05/projects/ 
+
+* prm06/projects/
+
+#### Sequencer metrics
+
+* `prm06/rawdata/ngs/*/Info`
+
+* `prm05/rawdata/`
+
+### Calculon
+
+* `/groups/umcg-gd/prm03/projects`
+
 ```{sh eval=FALSE}
 ls !(*pdf) | grep -P 'sampleidMatcher'
 ```
@@ -149,11 +170,6 @@ This metric gives an overall snapshot of sequencing machine performance. For mos
 ## quality distribution metrics
 This tool is used for determining the overall 'quality' for a library in a given run. To that effect, it outputs a chart and tables indicating the range of quality scores and the total numbers of bases corresponding to those scores. Options include plotting the distribution of all of the reads, only the aligned reads, or reads that have passed the Illumina Chastity filter thresholds as described here.
 
-## files
-```{r}
-prm05 <- read.csv("data/prm05-projects-by-time", header = FALSE, sep = "")
-colnames(prm05) <- c("permissions", "blocks", "user", "group", "size", "month", "day", "time", "name")
-```
 
 # InterOp
 The interop files are binary files produced during a run providing detailed statistics. They are located in the rawdata of a run `run/Info/InterOp`.
@@ -182,4 +198,3 @@ Not publically documented
 
 ## RegistrationMetricsOut.bin 
 Not publically documented
-
