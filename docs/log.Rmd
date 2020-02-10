@@ -5,7 +5,7 @@ date: "2/4/2020"
 output: pdf_document
 ---
 
-# QC reports
+# Possibly analysable metrics
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -149,8 +149,17 @@ GC: The G+C content of the reference sequence represented by this bin. Values ar
 WINDOWS: The number of windows on the reference genome that have this G+C content.
 READ_STARTS: The number of reads whose start position is at the start of a window of this GC.
 MEAN_BASE_QUALITY: The mean quality (determined via the error rate) of all bases of all reads that are assigned to windows of this GC.
+
 NORMALIZED_COVERAGE: The ration of "coverage" in this GC bin vs. the mean coverage of all GC bins. A number of 1 represents mean coverage, a number less than one represents lower than mean coverage (e.g. 0.5 means half as much coverage as average) while a number greater than one represents higher than mean coverage (e.g. 3.1 means this GC bin has 3.1 times more reads per window than average).
+
 ERROR_BAR_WIDTH: The radius of error bars in this bin based on the number of observations made. For example if the normalized coverage is 0.75 and the error bar width is 0.1 then the error bars would be drawn from 0.65 to 0.85.
+
+```{r}
+gc_bias <- read.table("../data/testdata.confidential/QXTR_810-Exoom_v3/run01/qc/statistics/data.gc_bias_metrics", comment.char = "#", header = TRUE, sep = "\t")
+
+
+```
+
 
 ## hs_metrics
 [hs_metrics-docs](https://personal.broadinstitute.org/picard/picard_metric_definitions.html#HsMetrics)
@@ -159,6 +168,38 @@ ERROR_BAR_WIDTH: The radius of error bars in this bin based on the number of obs
 Metrics about the insert size distribution of a paired-end library, created by the CollectInsertSizeMetrics program and usually written to a file with the extension ".insert_size_metrics". In addition the insert size distribution is plotted to a file with the extension ".insert_size_Histogram.pdf".
 
 [insert size metrics docs](https://personal.broadinstitute.org/picard/picard_metric_definitions.html#InsertSizeMetrics)
+
+```{r}
+multiTable = function(filepath, comment.char) {
+  con = file(filepath, "r")
+  tableindex=0
+  tableCount = 0
+  while (TRUE) {
+    fileLine = readLines(con, n = 1)
+    if (length(fileLine) == 0) {
+      break
+    }
+    if (!(startsWith(fileLine, comment.char))) {
+      if (tableindex == 0) {
+        print(strsplit(fileLine, "\\\t"))
+        tableCount <- tableCount + 1
+        currentDf <- data.frame()
+      }
+      tableindex <- tableindex + 1
+      if (fileLine == "") {
+        tableindex <- 0
+      }
+    }
+  }
+  close(con)
+}
+
+multiTable("../data/testdata.confidential/QXTR_810-Exoom_v3/run01/qc/statistics/data.insert_size_metrics", "#")
+```
+```{r}
+
+```
+
 
 ## nonAutosomalRegionChrX_hs_metrics
 hs metrics for Chromosome X
@@ -198,3 +239,17 @@ Not publically documented
 
 ## RegistrationMetricsOut.bin 
 Not publically documented
+
+## MultiQC
+The multiqc data provides aggregated results of the different bioinformatics tools
+
+```{r}
+VCF <- read.table("../data/testdata.confidential/demo_vcf/20196298_2166656_DNA125983_573149_QXTR868_3183841.final.vcf.table", header = T, sep = "\t")
+
+
+```
+
+```{r}
+insertSizes <- read.table("../data/insertSizes.table", header = TRUE, sep = "\t", fill = TRUE)
+```
+
