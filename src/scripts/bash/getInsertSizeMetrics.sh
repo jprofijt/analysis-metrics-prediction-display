@@ -7,14 +7,18 @@ helpFunction()
    echo "Usage: $0 -d directory -o output"
    echo -e "\t-d Path to directory to search"
    echo -e "\t-o Path to output file"
+   echo -e "\t-F Force overwrites"
    exit 1 # Exit script after printing help
 }
 
-while getopts "d:o:" opt
+force=0
+
+while getopts "d:o:F" opt
 do
    case "$opt" in
       d ) directory="$OPTARG" ;;
       o ) output="$OPTARG" ;;
+      F ) force=1 ;;
       ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
    esac
 done
@@ -28,7 +32,7 @@ fi
 
 
 # if output already exists
-if [[ -f $output ]]; then
+if [[ $force == 0 ]] &&  [[ -f $output ]]; then
   echo "$output already exists, overwrite? [y/n]:"
   read answer
   if [[ $answer == "n" ]]; then
@@ -43,37 +47,51 @@ if [[ -f $output ]]; then
   fi
 fi
 
-touch $output
 HERE=$PWD
 counter=0
-cd $directory
+cd $directory # go to projects directory
 total=`ls -l | grep -c ^d`
 tmp="${HERE}/.insertSizeTmpStorage"
 touch $tmp
-echo "PROJECT_ID,SAMPLE_ID,MEDIAN_INSERT_SIZE,MEDIAN_ABSOLUTE_DEVIATION,MIN_INSERT_SIZE,MAX_INSERT_SIZE,MEAN_INSERT_SIZE,STANDARD_DEVIATION,READ_PAIRS,PAIR_ORIENTATION,WIDTH_OF_10_PERCENT,WIDTH_OF_20_PERCENT,WIDTH_OF_30_PERCENT,WIDTH_OF_40_PERCENT,WIDTH_OF_50_PERCENT,WIDTH_OF_60_PERCENT,WIDTH_OF_70_PERCENT,WIDTH_OF_80_PERCENT,WIDTH_OF_90_PERCENT,WIDTH_OF_99_PERCENT,SAMPLE,LIBRARY,READ_GROUP" > $tmp
+echo "PROJECT_ID,SAMPLE_ID,MEDIAN_INSERT_SIZE,MEDIAN_ABSOLUTE_DEVIATION,MIN_INSERT_SIZE,MAX_INSERT_SIZE,MEAN_INSERT_SIZE,STANDARD_DEVIATION,READ_PAIRS,PAIR_ORIENTATION,WIDTH_OF_10_PERCENT,WIDTH_OF_20_PERCENT,WIDTH_OF_30_PERCENT,WIDTH_OF_40_PERCENT,WIDTH_OF_50_PERCENT,WIDTH_OF_60_PERCENT,WIDTH_OF_70_PERCENT,WIDTH_OF_80_PERCENT,WIDTH_OF_90_PERCENT,WIDTH_OF_99_PERCENT,SAMPLE,LIBRARY,READ_GROUP,DATE" > $tmp # File header
 for project in `find . -maxdepth 1 -mindepth 1 -type d`
   do
-    let "counter++"
-    if [[ -d "${project}/run01/results/qc/statistics/" ]]; then
-      for D in `find $project/run01/results/qc/statistics/ -name "*.insert_size_metrics" -type f`
+    
+    PROJECTID=`echo "${project}" | cut -c 3-` # remove root folder './'
+    progress=$(($counter*100/$total))
+    echo -ne " ${progress}% of directories searched (${counter}/${total}) Project: ${PROJECTID}\r"
+    let "counter++" # Progress counter
+    
+    if [[ -d "${project}/run01/results/qc/statistics/" ]] && [[ -f "${project}/run01/results/${PROJECTID}.csv" ]]; then # if project has a results file, and a sample sheet start retrieving insertsizes
+      for D in `find $project/run01/results/qc/statistics/ -name "*.insert_size_metrics" -type f` # for insert size metrics file
         do
-          ROW=`head -n 8 "${D}" | tail -1 | tr '\t' ','`
-          ID=`echo "${D}" | cut -d '/' -f 7 | cut -d '.' -f 1`
-          PROJECTID=`echo "${D}" | cut -d '/' -f 2`
-          RowToInsert=`echo "${PROJECTID},${ID},${ROW}"` 
-          NumberOfCollumns=`echo "${RowToInsert}" | awk '{print gsub(/,/,"")}'`
-          if [[ $NumberOfCollumns == 22 ]]; then
+          ROW=`head -n 8 "${D}" | tail -1 | tr '\t' ','` # get the distribution metrics
+          ID=`echo "${D}" | cut -d '/' -f 7 | cut -d '.' -f 1` # get the sample ID
+          DATE=`cat "${project}/run01/results/${PROJECTID}.csv" | grep $ID | cut -d',' -f 18` # get the sequencing start date from samplesheet
+          if [[ ! $DATE =~ ^[0-9]+$ ]]; then # if date is not numeric, try previous column
+            DATE=`cat "${project}/run01/results/${PROJECTID}.csv" | grep $ID | cut -d',' -f 17`
+            if [[ ! $DATE =~ ^[0-9]+$ ]]; then # if date is still not numeric, try next column
+              DATE=`cat "${project}/run01/results/${PROJECTID}.csv" | grep $ID | cut -d',' -f 19`
+              if [[ ! $DATE =~ ^[0-9]+$ ]]; then # finally skip this file if no date can be parsed
+                continue
+              fi
+            fi
+          fi
+          RowToInsert=`echo "${PROJECTID},${ID},${ROW},${DATE}"` # create the new row
+          NumberOfCollumns=`echo "${RowToInsert}" | awk '{print gsub(/,/,"")}'` # count the collums
+          if [[ $NumberOfCollumns == 23 ]]; then # if colums are complete insert data in tmp file
             echo "${RowToInsert}" >> $tmp
           fi
         done
     fi
-    progress=$(($counter*100/$total))
-    echo -ne "${progress}% of directories searched\r"
   done
   
 cd $HERE
-mv $tmp $output
+mv $tmp $output # mv tmp file to output file
 echo -ne '\n'
+echo "Completed gathering insertsize metrics from ${total} directories"
+
+exit 1
 
 
 

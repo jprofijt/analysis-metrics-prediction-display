@@ -194,7 +194,6 @@ multiTable = function(filepath, comment.char) {
   close(con)
 }
 
-multiTable("../data/testdata.confidential/QXTR_810-Exoom_v3/run01/qc/statistics/data.insert_size_metrics", "#")
 ```
 ```{r}
 
@@ -250,6 +249,39 @@ VCF <- read.table("../data/testdata.confidential/demo_vcf/20196298_2166656_DNA12
 ```
 
 ```{r}
-insertSizes <- read.table("../data/insertSizes.table", header = TRUE, sep = "\t", fill = TRUE)
+insertSizesPrm03 <- read.csv("../data/insertSizesV2.csv", header = TRUE)
+insertSizesPrm03$prepkit <- unlist(lapply(insertSizesPrm03$PROJECT_ID, function (x) {
+  return(strsplit(toString(x), '-')[[1]][2])
+}))
+
+insertSizesPrm05 <- read.csv("../data/prm05InsertSizes.csv", header = TRUE)
+insertSizesPrm05$prepkit <- unlist(lapply(insertSizesPrm05$PROJECT_ID, function (x) {
+  return(strsplit(toString(x), '-')[[1]][2])
+}))
+
+insertSizesPrm06 <- read.csv("../data/prm06InsertSizes.csv", header = TRUE)
+insertSizesPrm06$prepkit <- unlist(lapply(insertSizesPrm06$PROJECT_ID, function (x) {
+  return(strsplit(toString(x), '-')[[1]][2])
+}))
+
+insertSizes <- rbind(rbind(insertSizesPrm03, insertSizesPrm05), insertSizesPrm06)
+
+insertSizes <- insertSizes[!duplicated(insertSizes$SAMPLE_ID), ]
+```
+```{r}
+insertSizesPrm03Dated <- read.csv("../data/prm03InsertSizesDates.csv", header = TRUE)
+insertSizesPrm03Dated$prepkit <- unlist(lapply(insertSizesPrm03Dated$PROJECT_ID, function (x) {
+  return(strsplit(toString(x), '-')[[1]][2])
+}))
+
+insertSizesPrm03Dated$DATE <- as.Date(as.character(insertSizesPrm03Dated$DATE), format = "%y%m%d")
+
+insertSizesPrm03DatedSub <- subset(insertSizesPrm03Dated, DATE > as.Date("2019-01-01"))
+ggplot(insertSizesPrm03DatedSub, aes(x=DATE, y=MEDIAN_INSERT_SIZE, colour=prepkit)) +
+  geom_point() +
+  xlab("Sequencing Date") +
+  ylab("Median Insert size") +
+  ggtitle("Median insert size over time")
+  
 ```
 
