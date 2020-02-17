@@ -314,4 +314,8 @@ ggplot(subset(insertSizesPrm03DatedSub, prepkit == 'SVP_v2'), aes(x=DATE, y=MEDI
   ylab("Median Insert size") +
   ggtitle("Median insert size over time for SVP_v2")
 ```
+```{r}
+hsMetrics <- read.csv("../wiki/analysis-metrics-prediction-display.wiki/prm05HsMetrics.csv", sep = ",", header = TRUE)
+subset(hsMetrics, is.numeric(DATE))
+```
 
