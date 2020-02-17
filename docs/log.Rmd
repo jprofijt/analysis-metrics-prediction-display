@@ -249,39 +249,69 @@ VCF <- read.table("../data/testdata.confidential/demo_vcf/20196298_2166656_DNA12
 ```
 
 ```{r}
-insertSizesPrm03 <- read.csv("../data/insertSizesV2.csv", header = TRUE)
+insertSizesPrm03 <- read.csv("../data/prm03InsertSizesDates.csv", header = TRUE)
 insertSizesPrm03$prepkit <- unlist(lapply(insertSizesPrm03$PROJECT_ID, function (x) {
   return(strsplit(toString(x), '-')[[1]][2])
 }))
 
-insertSizesPrm05 <- read.csv("../data/prm05InsertSizes.csv", header = TRUE)
+insertSizesPrm05 <- read.csv("../data/prm05InsertSizeDated.csv", header = TRUE)
 insertSizesPrm05$prepkit <- unlist(lapply(insertSizesPrm05$PROJECT_ID, function (x) {
   return(strsplit(toString(x), '-')[[1]][2])
 }))
 
-insertSizesPrm06 <- read.csv("../data/prm06InsertSizes.csv", header = TRUE)
+insertSizesPrm06 <- read.csv("../data/prm06InsertSizeDated.csv", header = TRUE)
 insertSizesPrm06$prepkit <- unlist(lapply(insertSizesPrm06$PROJECT_ID, function (x) {
   return(strsplit(toString(x), '-')[[1]][2])
 }))
 
-insertSizes <- rbind(rbind(insertSizesPrm03, insertSizesPrm05), insertSizesPrm06)
+insertSizes <- rbind(insertSizesPrm03, insertSizesPrm05)
 
 insertSizes <- insertSizes[!duplicated(insertSizes$SAMPLE_ID), ]
 ```
 ```{r}
-insertSizesPrm03Dated <- read.csv("../data/prm03InsertSizesDates.csv", header = TRUE)
-insertSizesPrm03Dated$prepkit <- unlist(lapply(insertSizesPrm03Dated$PROJECT_ID, function (x) {
-  return(strsplit(toString(x), '-')[[1]][2])
-}))
+library(ggplot2)
+insertSizes$DATE <- as.Date(as.character(insertSizes$DATE), format = "%y%m%d")
 
-insertSizesPrm03Dated$DATE <- as.Date(as.character(insertSizesPrm03Dated$DATE), format = "%y%m%d")
-
-insertSizesPrm03DatedSub <- subset(insertSizesPrm03Dated, DATE > as.Date("2019-01-01"))
+insertSizesDatedSub <- subset(insertSizes, DATE > as.Date("2019-01-01"))
 ggplot(insertSizesPrm03DatedSub, aes(x=DATE, y=MEDIAN_INSERT_SIZE, colour=prepkit)) +
   geom_point() +
   xlab("Sequencing Date") +
   ylab("Median Insert size") +
   ggtitle("Median insert size over time")
-  
+
+ggplot(subset(insertSizesPrm03DatedSub, prepkit == 'Exoom_v3'), aes(x=DATE, y=MEDIAN_INSERT_SIZE, colour=prepkit)) +
+  geom_point() +
+  geom_smooth() +
+  xlab("Sequencing Date") +
+  ylab("Median Insert size") +
+  ggtitle("Median insert size over time for Exoom_v5")
+
+ggplot(subset(insertSizesPrm03DatedSub, prepkit == 'ONCO_v4'), aes(x=DATE, y=MEDIAN_INSERT_SIZE, colour=prepkit)) +
+  geom_point() +
+  geom_smooth() +
+  xlab("Sequencing Date") +
+  ylab("Median Insert size") +
+  ggtitle("Median insert size over time for ONCO_v4")
+
+ggplot(subset(insertSizesPrm03DatedSub, prepkit == 'ONCO_v5'), aes(x=DATE, y=MEDIAN_INSERT_SIZE, colour=prepkit)) +
+  geom_point() +
+  geom_smooth() +
+  xlab("Sequencing Date") +
+  ylab("Median Insert size") +
+  ggtitle("Median insert size over time for ONCO_v5")
+
+ggplot(subset(insertSizesPrm03DatedSub, prepkit == 'PCS_v5'), aes(x=DATE, y=MEDIAN_INSERT_SIZE, colour=prepkit)) +
+  geom_point() +
+  geom_smooth() +
+  xlab("Sequencing Date") +
+  ylab("Median Insert size") +
+  ggtitle("Median insert size over time for PCS_v5")
+
+ggplot(subset(insertSizesPrm03DatedSub, prepkit == 'SVP_v2'), aes(x=DATE, y=MEDIAN_INSERT_SIZE, colour=prepkit)) +
+  geom_point() +
+  geom_smooth() +
+  xlab("Sequencing Date") +
+  ylab("Median Insert size") +
+  ggtitle("Median insert size over time for SVP_v2")
 ```
 

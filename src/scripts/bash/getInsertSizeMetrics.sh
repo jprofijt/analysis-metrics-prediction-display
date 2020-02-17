@@ -1,4 +1,5 @@
-#!/bin/bash
+#! /bin/bash
+
 helpFunction()
 {
    echo ""
@@ -47,6 +48,23 @@ if [[ $force == 0 ]] &&  [[ -f $output ]]; then
   fi
 fi
 
+getSampleSheetDate() {
+  # $1: Sample sheet csv
+  # $2: Sample ID
+  # $3: Column number
+  return `cat $1 | grep $2 | cut -d',' -f $3`
+}
+
+checkDate() {
+  if [[ ! $1 =~ ^[0-9]+$ ]]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+
+
 HERE=$PWD
 counter=0
 cd $directory # go to projects directory
@@ -59,30 +77,36 @@ for project in `find . -maxdepth 1 -mindepth 1 -type d`
     
     PROJECTID=`echo "${project}" | cut -c 3-` # remove root folder './'
     progress=$(($counter*100/$total))
-    echo -ne " ${progress}% of directories searched (${counter}/${total}) Project: ${PROJECTID}\r"
+    echo -ne " ${progress}% of directories searched (${counter}/${total}) Project: ${PROJECTID}\r" # Progress indicator
     let "counter++" # Progress counter
+    
     
     if [[ -d "${project}/run01/results/qc/statistics/" ]] && [[ -f "${project}/run01/results/${PROJECTID}.csv" ]]; then # if project has a results file, and a sample sheet start retrieving insertsizes
       for D in `find $project/run01/results/qc/statistics/ -name "*.insert_size_metrics" -type f` # for insert size metrics file
         do
           ROW=`head -n 8 "${D}" | tail -1 | tr '\t' ','` # get the distribution metrics
           ID=`echo "${D}" | cut -d '/' -f 7 | cut -d '.' -f 1` # get the sample ID
-          DATE=`cat "${project}/run01/results/${PROJECTID}.csv" | grep $ID | cut -d',' -f 18` # get the sequencing start date from samplesheet
-          if [[ ! $DATE =~ ^[0-9]+$ ]]; then # if date is not numeric, try previous column
-            DATE=`cat "${project}/run01/results/${PROJECTID}.csv" | grep $ID | cut -d',' -f 17`
-            if [[ ! $DATE =~ ^[0-9]+$ ]]; then # if date is still not numeric, try next column
-              DATE=`cat "${project}/run01/results/${PROJECTID}.csv" | grep $ID | cut -d',' -f 19`
-              if [[ ! $DATE =~ ^[0-9]+$ ]]; then # finally skip this file if no date can be parsed
+          sampleSheet= "${project}/run01/results/${PROJECTID}.csv"
+          
+          DATE=$(getSampleSheetDate() $sampleSheet $ID 18) # get the sequencing start date from samplesheet
+          
+          if [[ checkDate() $DATE ]]; then # if date is not numeric, try previous column
+            DATE=$(getSampleSheetDate() $sampleSheet $ID 17)
+            if [[ checkDate() $DATE ]]; then # if date is still not numeric, try next column
+              DATE=$(getSampleSheetDate() $sampleSheet $ID 19)
+              if [[ checkDate() $DATE ]]; then # finally skip this file if no date can be parsed
                 continue
               fi
             fi
           fi
+          
           RowToInsert=`echo "${PROJECTID},${ID},${ROW},${DATE}"` # create the new row
           NumberOfCollumns=`echo "${RowToInsert}" | awk '{print gsub(/,/,"")}'` # count the collums
+          
           if [[ $NumberOfCollumns == 23 ]]; then # if colums are complete insert data in tmp file
             echo "${RowToInsert}" >> $tmp
           fi
-        done
+        done 
     fi
   done
   

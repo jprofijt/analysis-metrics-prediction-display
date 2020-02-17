@@ -7,3 +7,7 @@ venv/
 *.Rproj
 .Rproj.*
 .Rproj.user
+*.confidential*
+*test*
+*.swp
+insertsizes.csv
