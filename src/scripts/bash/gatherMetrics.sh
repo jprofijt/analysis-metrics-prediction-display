@@ -113,10 +113,10 @@ setupFiles()
     echo "PROJECT_ID,RUN,SAMPLE_ID,MEDIAN_INSERT_SIZE,MEDIAN_ABSOLUTE_DEVIATION,MIN_INSERT_SIZE,MAX_INSERT_SIZE,MEAN_INSERT_SIZE,STANDARD_DEVIATION,READ_PAIRS,PAIR_ORIENTATION,WIDTH_OF_10_PERCENT,WIDTH_OF_20_PERCENT,WIDTH_OF_30_PERCENT,WIDTH_OF_40_PERCENT,WIDTH_OF_50_PERCENT,WIDTH_OF_60_PERCENT,WIDTH_OF_70_PERCENT,WIDTH_OF_80_PERCENT,WIDTH_OF_90_PERCENT,WIDTH_OF_99_PERCENT,SAMPLE,LIBRARY,READ_GROUP,DATE" > "${tmpdir}/insertSizeMetrics.csv"
   fi
   if [[ $AlignmentSummaryMetrics ]]; then
-    echo "tmpheader" > "${tmpdir}/AlignmentSummaryMetrics.csv"
+    echo "PROJECT_ID,RUN,SAMPLE_ID,CATEGORY,TOTAL_READS,PF_READS,PCT_PF_READS,PF_NOISE_READS,PF_READS_ALIGNED,PCT_PF_READS_ALIGNED,PF_ALIGNED_BASES,PF_HQ_ALIGNED_READS,PF_HQ_ALIGNED_BASES,PF_HQ_ALIGNED_Q20_BASES,PF_HQ_MEDIAN_MISMATCHES,PF_MISMATCH_RATE,PF_HQ_ERROR_RATE,PF_INDEL_RATE,MEAN_READ_LENGTH,READS_ALIGNED_IN_PAIRS,PCT_READS_ALIGNED_IN_PAIRS,BAD_CYCLES,STRAND_BALANCE,PCT_CHIMERAS,PCT_ADAPTER,SAMPLE,LIBRARY,READ_GROUP,DATE" > "${tmpdir}/AlignmentSummaryMetrics.csv"
   fi
   if [[ $FlagstatMetrics ]]; then
-    echo "tmpheader" > "${tmpdir}/FlagstatMetrics.csv"
+    echo "PROJECT_ID,RUN,SAMPLE_ID,TOTAL_PASS,TOTAL_FAIL,SECONDARY_PASS,SECONDARY_FAIL,SUPPLEMENTARY_PASS,SUPPLEMENTARY_FAIL,DUPLICATE_PASS,DUPLICATE_FAIL,MAPPED_PASS,MAPPED_FAIL,MAPPED_PCT,PAIRED_SEQ_PASS,PAIRED_SEQ_FAIL,R1_PASS,R1_FAIL,R2_PASS,R2_FAIL,PROPER_PAIR_PASS,PROPER_PAIR_FAIL,BOTH_MAPPED_PASS,BOTH_MAPPED_FAIL,SINGLETONS_PASS,SINGLETONS_FAIL,SINGLETONS_PCT,MATE_ON_DIFF_CHR_LOW_PASS,MATE_ON_DIFF_CHR_LOW_FAIL,MATE_ON_DIFF_CHR_HIGHQ_PASS,MATE_ON_DIFF_CHR_HIGHQ_FAIL,DATE" > "${tmpdir}/FlagstatMetrics.csv"
   fi
   if [[ $gcBiasMetrics ]]; then
     echo "tmpheader" > "${tmpdir}/gcBiasMetrics.csv"
@@ -175,21 +175,65 @@ isMetrics()
 
 asMetrics()
 {
-  #not implemented
-  echo "test" >> "${tmpdir}/AlignmentSummaryMetrics.csv"
+  # Function to parse alignment summary metrics file
+  # Adds entries to alignment summary metrics.csv
+  # each asm file contains 3 rows, first of pair, second of pair and pair.
+  cd "results/qc/statistics"
+  for D in `find . -name "*.merged.dedup.bam.alignment_summary_metrics" -type f`
+    do
+      ID=`echo "${D}" | awk -F'.merged.dedup.bam.alignment_summary_metrics' '{ print $1 }' | awk -F'./' '{ print $2 }'`
+      FIRST=`cat "${D}" | grep "^FIRST_OF_PAIR" | tr '\t' ','`
+      SECOND=`cat "${D}" | grep "^SECOND_OF_PAIR" | tr '\t' ','`
+      PAIR=`cat "${D}" | grep "^PAIR" | tr '\t' ','`
+      RowToInsertFirst=`echo "${PROJECTID},${currentRunID},${ID},${FIRST},${DATE}"`
+      RowToInsertSecond=`echo "${PROJECTID},${currentRunID},${ID},${SECOND},${DATE}"`
+      RowToInsertPair=`echo "${PROJECTID},${currentRunID},${ID},${PAIR},${DATE}"`
+      
+      NumberOfCollumnsFirst=`echo "${RowToInsertFirst}" | awk '{print gsub(/,/,"")}'`
+      NumberOfCollumnsSecond=`echo "${RowToInsertSecond}" | awk '{print gsub(/,/,"")}'`
+      NumberOfCollumnsPair=`echo "${RowToInsertPair}" | awk '{print gsub(/,/,"")}'`
+      
+      if [[ $NumberOfCollumnsFirst == 28 ]] && [[ $NumberOfCollumnsSecond == 28 ]] &&  [[ $NumberOfCollumnsPair == 28 ]]; then
+         echo $RowToInsertFirst >> "${tmpdir}/AlignmentSummaryMetrics.csv"
+         echo $RowToInsertSecond >> "${tmpdir}/AlignmentSummaryMetrics.csv"
+         echo $RowToInsertPair >> "${tmpdir}/AlignmentSummaryMetrics.csv"
+      fi
+    done
+  cd ../../../
 }
 
 flMetrics()
 {
-  # Flagstat metrics
-  #not implemented
-  echo "test" >> "${tmpdir}/FlagstatMetrics.csv"
+  # Function to parse and store flagstat metrics
+  # the flagstat metrics file has many entries in a little complex format
+  # PROJECT_ID,RUN,SAMPLE_ID,TOTAL_PASS,TOTAL_FAIL,SECONDARY_PASS,SECONDARY_FAIL,SUPPLEMENTARY_PASS,SUPPLEMENTARY_FAIL,DUPLICATE_PASS,DUPLICATE_FAIL,MAPPED_PASS,MAPPED_FAIL,MAPPED_PCT,PAIRED_SEQ_PASS,PAIRED_SEQ_FAIL,R1_PASS,R1_FAIL,R2_PASS,R2_FAIL,PROPER_PAIR_PASS,PROPER_PAIR_FAIL,BOTH_MAPPED_PASS,BOTH_MAPPED_FAIL,SINGLETONS_PASS,SINGLETONS_FAIL,SINGLETONS_PCT,MATE_ON_DIFF_CHR_LOW_PASS,MATE_ON_DIFF_CHR_LOW_FAIL,MATE_ON_DIFF_CHR_HIGHQ_PASS,MATE_ON_DIFF_CHR_HIGHQ_FAIL,DATE
+  cd "results/qc/statistics"
+  for D in `find . -name "*.merged.dedup.bam.flagstat" -type f`
+    do
+      ID=`echo "${D}" | awk -F'.merged.dedup.bam.flagstat' '{ print $1 }' | awk -F'./' '{ print $2 }'`
+      lineIndex=0
+      ROW="${PROJECTID},${currentRunID},${ID}"
+      while IFS='' read -r line; do
+        let "lineIndex++"
+        if [[ $lineIndex == 5 ]] || [[ $lineIndex == 9 ]] || [[ $lineIndex == 11 ]]; then
+          PassFail=`echo $line | grep -oP '[0-9]+\s\+\s[0-9]+'
+          PCT=`echo $line | grep -oP '(?<=\()[0-9][0-9]\.[0-9][0-9](?=\%)'`
+          ROW="${ROW},${PassFail/ + /,},${PCT}"
+        else
+          PassFail=`echo $line | grep -oP '[0-9]+\s\+\s[0-9]+'
+          ROW="${ROW},${PassFail/ + /,}"
+        fi
+      done
+      echo "$ROW" >> "${tmpdir}/FlagstatMetrics.csv"
+    done
+  cd ../../../
 }
 
 gcbMetrics() 
 {
   # gc Bias Metrics
   # not implemented
+  
   echo "test" >> "${tmpdir}/gcBiasMetrics.csv"
 }
 
