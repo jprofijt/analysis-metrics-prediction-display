@@ -315,7 +315,17 @@ ggplot(subset(insertSizesPrm03DatedSub, prepkit == 'SVP_v2'), aes(x=DATE, y=MEDI
   ggtitle("Median insert size over time for SVP_v2")
 ```
 ```{r}
-hsMetrics <- read.csv("../wiki/analysis-metrics-prediction-display.wiki/prm05HsMetrics.csv", sep = ",", header = TRUE)
-subset(hsMetrics, is.numeric(DATE))
+hsMetrics <- read.csv("../data/gatheredMetrics/hsMetrics.csv", sep = ",", header = TRUE)
+hsMetricsWithDates <- subset(hsMetrics, !is.na(DATE))
+hsMetricsWithDates$DATE <- as.Date(as.character(hsMetricsWithDates$DATE), format = "%y%m%d")
+
+ggplot(hsMetricsWithDates, aes(x=DATE, y=PF_READS)) +
+  geom_point() +
+  geom_smooth() +
+  xlab("Sequencing date") +
+  ylab("Reads passed filter") +
+  ggtitle("Reads passed filter over time")
+
+
 ```
 
