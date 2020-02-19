@@ -50,7 +50,7 @@ then
 fi
 
 # if output already exists
-if [[ $force == 0 ]] &&  [[ -d $output ]]; then
+if [[ $force == 0 ]] &&  [[ -f $output ]]; then
         echo "$output already exists, overwrite? [y/n]:"
         read answer
         if [[ $answer == "n" ]]; then
@@ -97,11 +97,13 @@ checkconfig()
 }
 source $config
 checkconfig
+
 HERE=$PWD
 counter=0
 cd $directory # go to projects directory
 total=`ls -l | grep -c ^d`
 tmpdir=`echo "${HERE}/.tmpMetricsGatherDir/"`
+rm -r "${tmpdir}"
 mkdir "${tmpdir}"
 
 setupFiles()
@@ -119,7 +121,7 @@ setupFiles()
     echo "PROJECT_ID,RUN,SAMPLE_ID,TOTAL_PASS,TOTAL_FAIL,SECONDARY_PASS,SECONDARY_FAIL,SUPPLEMENTARY_PASS,SUPPLEMENTARY_FAIL,DUPLICATE_PASS,DUPLICATE_FAIL,MAPPED_PASS,MAPPED_FAIL,MAPPED_PCT,PAIRED_SEQ_PASS,PAIRED_SEQ_FAIL,R1_PASS,R1_FAIL,R2_PASS,R2_FAIL,PROPER_PAIR_PASS,PROPER_PAIR_FAIL,BOTH_MAPPED_PASS,BOTH_MAPPED_FAIL,SINGLETONS_PASS,SINGLETONS_FAIL,SINGLETONS_PCT,MATE_ON_DIFF_CHR_LOW_PASS,MATE_ON_DIFF_CHR_LOW_FAIL,MATE_ON_DIFF_CHR_HIGHQ_PASS,MATE_ON_DIFF_CHR_HIGHQ_FAIL,DATE" > "${tmpdir}/FlagstatMetrics.csv"
   fi
   if [[ $gcBiasMetrics ]]; then
-    echo "tmpheader" > "${tmpdir}/gcBiasMetrics.csv"
+    echo "PROJECT_ID,RUN,SAMPLE_ID,ACCUMULATION_LEVEL,READS_USED,GC,WINDOWS,READ_STARTS,MEAN_BASE_QUALITY,NORMALIZED_COVERAGE,ERROR_BAR_WIDTH,SAMPLE,LIBRARY,READ_GROUP,DATE" > "${tmpdir}/gcBiasMetrics.csv"
   fi
   if [[ $QualityByCycleMetrics ]]; then
     echo "tmpheader" > "${tmpdir}/QualityByCycleMetrics.csv"
@@ -185,6 +187,8 @@ asMetrics()
       FIRST=`cat "${D}" | grep "^FIRST_OF_PAIR" | tr '\t' ','`
       SECOND=`cat "${D}" | grep "^SECOND_OF_PAIR" | tr '\t' ','`
       PAIR=`cat "${D}" | grep "^PAIR" | tr '\t' ','`
+      SampleEntry=`cat "../../${PROJECTID}.csv" | grep "${ID}"`
+      getDate
       RowToInsertFirst=`echo "${PROJECTID},${currentRunID},${ID},${FIRST},${DATE}"`
       RowToInsertSecond=`echo "${PROJECTID},${currentRunID},${ID},${SECOND},${DATE}"`
       RowToInsertPair=`echo "${PROJECTID},${currentRunID},${ID},${PAIR},${DATE}"`
@@ -216,14 +220,17 @@ flMetrics()
       while IFS='' read -r line; do
         let "lineIndex++"
         if [[ $lineIndex == 5 ]] || [[ $lineIndex == 9 ]] || [[ $lineIndex == 11 ]]; then
-          PassFail=`echo $line | grep -oP '[0-9]+\s\+\s[0-9]+'
+          PassFail=`echo $line | grep -oP '[0-9]+\s\+\s[0-9]+'`
           PCT=`echo $line | grep -oP '(?<=\()[0-9][0-9]\.[0-9][0-9](?=\%)'`
           ROW="${ROW},${PassFail/ + /,},${PCT}"
         else
-          PassFail=`echo $line | grep -oP '[0-9]+\s\+\s[0-9]+'
+          PassFail=`echo $line | grep -oP '[0-9]+\s\+\s[0-9]+'`
           ROW="${ROW},${PassFail/ + /,}"
         fi
-      done
+      done < "$D"
+      SampleEntry=`cat "../../${PROJECTID}.csv" | grep "${ID}"`
+      getDate
+      ROW="${ROW},${DATE}"
       echo "$ROW" >> "${tmpdir}/FlagstatMetrics.csv"
     done
   cd ../../../
@@ -231,10 +238,18 @@ flMetrics()
 
 gcbMetrics() 
 {
-  # gc Bias Metrics
+  # gc Bias Metrics tail -n +7 20101533_6090566_DNA127819_579467_QXTR952_S07604514.merged.dedup.bam.gc_bias_metrics
   # not implemented
-  
-  echo "test" >> "${tmpdir}/gcBiasMetrics.csv"
+  cd "results/qc/statistics"
+  for D in `find . -name "*.merged.dedup.bam.gc_bias_metrics" -type f`
+    do
+      ID=`echo "${D}" | awk -F'.merged.dedup.bam.gc_bias_metrics' '{ print $1 }' | awk -F'./' '{ print $2 }'`
+      prefix="${PROJECTID},${currentRunID},${ID},"
+      SampleEntry=`cat "../../${PROJECTID}.csv" | grep "${ID}"`
+      getDate
+      suffix=",${DATE}"
+      tail -n +8 $D | tr "\t" "," | grep . | awk -v prefix="$prefix" -v suffix="$suffix" '{print prefix $0 suffix}' >> "${tmpdir}/gcBiasMetrics.csv"
+  done
 }
 
 qbcMetrics()
