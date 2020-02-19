@@ -240,8 +240,7 @@ flMetrics()
 
 gcbMetrics() 
 {
-  # gc Bias Metrics tail -n +7 20
-  # not implemented
+  # gc Bias Metrics parser. For each Gc bias file a table is parsed, which contains the info about the gc bins for said sample
   cd "results/qc/statistics"
   for D in `find . -name "*.merged.dedup.bam.gc_bias_metrics" -type f`
     do
@@ -249,8 +248,15 @@ gcbMetrics()
       prefix="${PROJECTID},${currentRunID},${ID},"
       SampleEntry=`cat "../../${PROJECTID}.csv" | grep "${ID}"`
       getDate
-      suffix=",${DATE}"
-      tail -n +8 $D | tr "\t" "," | grep . | awk -v prefix="$prefix" -v suffix="$suffix" '{print prefix $0 suffix}' >> "${tmpdir}/gcBiasMetrics.csv"
+      suffix=",${DATE}#"
+      
+      Table=`tail -n +8 $D | tr "\t" "," | grep . | awk -v prefix="$prefix" -v suffix="$suffix" '{print prefix $0 suffix}'`
+      
+      NumberOfCollumnsCheck=`echo "${Table}" | awk '{print gsub(/,/,"")}' | grep -v "14"`
+      
+      if [[ $NumberOfCollumnsCheck == "" ]]; then
+        echo $Table | sed 's/# /\n/g' >> "${tmpdir}/gcBiasMetrics.csv"
+      fi
   done
   cd ../../../
 }
