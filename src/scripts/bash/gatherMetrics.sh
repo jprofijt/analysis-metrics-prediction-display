@@ -103,7 +103,11 @@ counter=0
 cd $directory # go to projects directory
 total=`ls -l | grep -c ^d`
 tmpdir=`echo "${HERE}/.tmpMetricsGatherDir/"`
-rm -r "${tmpdir}"
+
+if [[ -d $tmpdir ]]; then
+    rm -r $tmpdir
+fi
+
 mkdir "${tmpdir}"
 
 setupFiles()
@@ -205,40 +209,38 @@ asMetrics()
     done
   cd ../../../
 }
+parseFlagStatFile()
+{
+  echo "`echo $FlagstatFile | grep -oP '([0-9]+\s\+\s[0-9]+)|(?<=\()[0-9][0-9]\.[0-9][0-9](?=\%)' | tr "\n" " "`" | sed "s/[[:space:]]+[[:space:]]/,/g" | sed "s/[[:space:]]/,/g"
+}
 
 flMetrics()
 {
   # Function to parse and store flagstat metrics
   # the flagstat metrics file has many entries in a little complex format
-  # PROJECT_ID,RUN,SAMPLE_ID,TOTAL_PASS,TOTAL_FAIL,SECONDARY_PASS,SECONDARY_FAIL,SUPPLEMENTARY_PASS,SUPPLEMENTARY_FAIL,DUPLICATE_PASS,DUPLICATE_FAIL,MAPPED_PASS,MAPPED_FAIL,MAPPED_PCT,PAIRED_SEQ_PASS,PAIRED_SEQ_FAIL,R1_PASS,R1_FAIL,R2_PASS,R2_FAIL,PROPER_PAIR_PASS,PROPER_PAIR_FAIL,BOTH_MAPPED_PASS,BOTH_MAPPED_FAIL,SINGLETONS_PASS,SINGLETONS_FAIL,SINGLETONS_PCT,MATE_ON_DIFF_CHR_LOW_PASS,MATE_ON_DIFF_CHR_LOW_FAIL,MATE_ON_DIFF_CHR_HIGHQ_PASS,MATE_ON_DIFF_CHR_HIGHQ_FAIL,DATE
+  
   cd "results/qc/statistics"
   for D in `find . -name "*.merged.dedup.bam.flagstat" -type f`
     do
       ID=`echo "${D}" | awk -F'.merged.dedup.bam.flagstat' '{ print $1 }' | awk -F'./' '{ print $2 }'`
-      lineIndex=0
-      ROW="${PROJECTID},${currentRunID},${ID}"
-      while IFS='' read -r line; do
-        let "lineIndex++"
-        if [[ $lineIndex == 5 ]] || [[ $lineIndex == 9 ]] || [[ $lineIndex == 11 ]]; then
-          PassFail=`echo $line | grep -oP '[0-9]+\s\+\s[0-9]+'`
-          PCT=`echo $line | grep -oP '(?<=\()[0-9][0-9]\.[0-9][0-9](?=\%)'`
-          ROW="${ROW},${PassFail/ + /,},${PCT}"
-        else
-          PassFail=`echo $line | grep -oP '[0-9]+\s\+\s[0-9]+'`
-          ROW="${ROW},${PassFail/ + /,}"
-        fi
-      done < "$D"
+      FlagstatFile=`cat $D`
       SampleEntry=`cat "../../${PROJECTID}.csv" | grep "${ID}"`
+      
       getDate
-      ROW="${ROW},${DATE}"
-      echo "$ROW" >> "${tmpdir}/FlagstatMetrics.csv"
+      parsedRow=$(parseFlagStatFile)
+      
+      ROW="${PROJECTID},${currentRunID},${ID},${parsedRow}${DATE}"
+      NumberOfCollumns=`echo "${ROW}" | awk '{print gsub(/,/,"")}'`
+      if [[ $NumberOfCollumns == 31 ]]; then
+        echo "${ROW}" >> "${tmpdir}/FlagstatMetrics.csv"
+      fi
     done
   cd ../../../
 }
 
 gcbMetrics() 
 {
-  # gc Bias Metrics tail -n +7 20101533_6090566_DNA127819_579467_QXTR952_S07604514.merged.dedup.bam.gc_bias_metrics
+  # gc Bias Metrics tail -n +7 20
   # not implemented
   cd "results/qc/statistics"
   for D in `find . -name "*.merged.dedup.bam.gc_bias_metrics" -type f`
@@ -250,6 +252,7 @@ gcbMetrics()
       suffix=",${DATE}"
       tail -n +8 $D | tr "\t" "," | grep . | awk -v prefix="$prefix" -v suffix="$suffix" '{print prefix $0 suffix}' >> "${tmpdir}/gcBiasMetrics.csv"
   done
+  cd ../../../
 }
 
 qbcMetrics()
