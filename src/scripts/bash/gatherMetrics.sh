@@ -325,11 +325,10 @@ qdMetrics()
         countArray="${countArray}${count},"
       done < <(tail -n +9 "$D" | grep .)
 
-      printf "\t\t%s: {
-        \t\t\t'QUALITY':[%s],
-        \t\t\t'COUNT_OF_Q':[%s],
-        \t\t\t'DATE':%s
-        \t\t},
+      printf "\t\t\t\t\t{'ID':'%s',
+        \t\t\t\t\t'QUALITY':[%s],
+        \t\t\t\t\t'COUNT_OF_Q':[%s],
+        \t\t\t\t\t'DATE':%s},
         " "$ID" "${qualityArray::-1}" "${countArray::-1}" "$DATE" >> "${tmpdir}/QDsampletmp"
   done < <(find . -name "*.merged.dedup.bam.quality_distribution_metrics" -type f -print0)
 
@@ -342,7 +341,7 @@ finishOff()
 {
   cycleRange=$(seq -s , "$MaxCycles")
   appendableHeader="PROJECT_ID,RUN,SAMPLE_ID,${cycleRange},DATE"
-  sed -i "1s/#/$appendableHeader" "${tmpdir}/QualityByCycleMetrics.csv"
+  sed -i "1s/#/$appendableHeader/" "${tmpdir}/QualityByCycleMetrics.csv"
   mv "${tmpdir}/QDtmp" "${tmpdir}/QualityDistributionMetrics.json"
   cd "$HERE" || exit
   echo -ne '\n'
@@ -362,6 +361,7 @@ finishOff()
 setupFiles # Generate empty files with headers
 
 # shellcheck disable=SC2094
+printf "projects: [\n" >> "${tmpdir}/QDtmp"
 while IFS= read -r -d '' project
   do
       cd "$project" || continue
@@ -369,7 +369,8 @@ while IFS= read -r -d '' project
       progress=$((counter*100/total))
       echo -ne " ${progress}% of directories searched (${counter}/${total}) Project: ${PROJECTID}\r" # Progress indicator
       (( counter++ )) # Progress counter
-      printf "%s: {\n" "$PROJECTID" >> "${tmpdir}/QDtmp"
+      printf "\t{\n\t\t'ID': '%s',\n" "$PROJECTID" >> "${tmpdir}/QDtmp"
+       printf "\t\truns: [\n" >> "${tmpdir}/QDtmp"
       # for run in project
       while IFS= read -r -d '' run
         do
@@ -396,15 +397,16 @@ while IFS= read -r -d '' project
               qbcMetrics
             fi
             if [[ $QDMETRICS ]]; then
-              printf "\t%s: {\n" "$currentRunID" >> "${tmpdir}/QDtmp"
+              printf "\t\t\t{\n\t\t\t'run':'%s',\n\t\t\t'samples':[\n" "$currentRunID">> "${tmpdir}/QDtmp"
                 qdMetrics
-              printf "\t},\n" >> "${tmpdir}/QDtmp"
+              printf "\t\t\t]\n\t\t\t},\n" >> "${tmpdir}/QDtmp"
             fi
           fi
           cd ..
         done < <(find . -maxdepth 1 -mindepth 1 -type d -print0)
       cd ..
-      printf "},\n" >> "${tmpdir}/QDtmp"
+      printf "\t\t],\n},\n" >> "${tmpdir}/QDtmp"
   done < <(find . -maxdepth 1 -mindepth 1 -type d -print0)
+printf "],\n" >> "${tmpdir}/QDtmp"
 
 finishOff
