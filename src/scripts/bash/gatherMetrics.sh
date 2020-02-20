@@ -12,35 +12,33 @@ helpFunction()
 }
 
 force=0
-config=".gMetricsConfig.sh"
 
-while getopts "d:o:F:c" opt
+while getopts "d:o:F" opt
 do
         case "$opt" in
                 d ) directory="$OPTARG" ;;
                 o ) output="$OPTARG" ;;
                 F ) force=1 ;;
-                c ) config="$OPTARG" ;;
                 ? ) helpFunction ;; # Print helpFunction in case parameter is non-existent
         esac
 done
 
-if [[ ! -f "$config" ]]; then
+if [[ ! -f "gatherMetricsConfig.sh" ]]; then
   {
-  echo "# Config file for gatherMetrics.sh"
-  "# Metrics with value '1' are enabled and '0' are disabled"
-  ""
-  "ISMETRICS=0  # Insert Size Metrics"
-  "HSMETRICS=0  # Hs Metrics"
-  "ASMETRICS=0  # Alignment Summary Metrics"
-  "FLMETRICS=0  # Flagstat metrics"
-  "GCBMETRICS=0 # gc Bias metrics"
-  "QBCMETRICS=0 # Quality by cycle metrics"
-  "QDMETRICS=0  # Quality distribution metrics"
-  "BIMETRICS=0  # Bam index stats metrics"
-  } > "$config"
+  echo "# Config file for gatherMetrics.sh
+  # Metrics with value '1' are enabled and '0' are disabled
   
-  echo "Created Config file at ${config} , exiting..."
+  ISMETRICS=0  # Insert Size Metrics
+  HSMETRICS=0  # Hs Metrics
+  ASMETRICS=0  # Alignment Summary Metrics
+  FLMETRICS=0  # Flagstat metrics
+  GCBMETRICS=0 # gc Bias metrics
+  QBCMETRICS=0 # Quality by cycle metrics
+  QDMETRICS=0  # Quality distribution metrics
+  BIMETRICS=0  # Bam index stats metrics"
+  } > "gatherMetricsConfig.sh"
+  
+  echo "Created Config file in gatherMetricsConfig.sh , exiting..."
   exit 1 # exit after generating a default config
 fi
 
@@ -97,15 +95,15 @@ checkconfig()
   fi
   echo "gathering: ${enabled}"
 }
-# shellcheck disable=SC1091
-source "$config"
+# shellcheck source=gatherMetricsConfig.sh
+source "gatherMetricsConfig.sh"
 checkconfig
 
 HERE=$PWD
 counter=0
 cd "$directory" || exit # go to projects directory
 total=$(ls -l | grep -c ^d)
-tmpdir=$("${HERE}/.tmpMetricsGatherDir/")
+tmpdir="${HERE}/.tmpMetricsGatherDir/"
 
 if [[ -d $tmpdir ]]; then
     rm -r "$tmpdir"
@@ -153,8 +151,8 @@ hsMetrics()
       ID=$(echo "${D}" | awk -F'.merged.dedup.bam.hs_metrics' '{ print $1 }' | awk -F'./' '{ print $2 }') # get the sample ID
       SampleEntry=$(grep "${ID}" "../../${PROJECTID}.csv")
       getDate
-      RowToInsert=$("${PROJECTID},${currentRunID},${ID},${ROW},${DATE}")
-      NumberOfCollumns=$("${RowToInsert}" | awk '{print gsub(/,/,"")}')
+      RowToInsert="${PROJECTID},${currentRunID},${ID},${ROW},${DATE}"
+      NumberOfCollumns=$(echo "${RowToInsert}" | awk '{print gsub(/,/,"")}')
       if [[ $NumberOfCollumns == 59 ]]; then # if colums are complete insert data in tmp file
         echo "${RowToInsert}" >> "${tmpdir}/hsMetrics.csv"
       fi
@@ -173,7 +171,7 @@ isMetrics()
       ID=$(echo "${D}" | awk -F'.merged.dedup.bam.insert_size_metrics' '{ print $1 }' | awk -F'./' '{ print $2 }') # get the sample ID
       SampleEntry=$(grep "${ID}" "../../${PROJECTID}.csv")
       getDate
-      RowToInsert=$("${PROJECTID},${currentRunID},${ID},${ROW},${DATE}")
+      RowToInsert="${PROJECTID},${currentRunID},${ID},${ROW},${DATE}"
       NumberOfCollumns=$(echo "${RowToInsert}" | awk '{print gsub(/,/,"")}')
       if [[ $NumberOfCollumns == 24 ]]; then # if colums are complete insert data in tmp file
         echo "${RowToInsert}" >> "${tmpdir}/insertSizeMetrics.csv"
@@ -196,9 +194,9 @@ asMetrics()
       PAIR=$(grep "^PAIR" "${D}" | tr '\t' ',')
       SampleEntry=$(grep "${ID}" "../../${PROJECTID}.csv")
       getDate
-      RowToInsertFirst=$("${PROJECTID},${currentRunID},${ID},${FIRST},${DATE}")
-      RowToInsertSecond=$("${PROJECTID},${currentRunID},${ID},${SECOND},${DATE}")
-      RowToInsertPair=$("${PROJECTID},${currentRunID},${ID},${PAIR},${DATE}")
+      RowToInsertFirst="${PROJECTID},${currentRunID},${ID},${FIRST},${DATE}"
+      RowToInsertSecond="${PROJECTID},${currentRunID},${ID},${SECOND},${DATE}"
+      RowToInsertPair="${PROJECTID},${currentRunID},${ID},${PAIR},${DATE}"
       
       NumberOfCollumnsFirst=$(echo "${RowToInsertFirst}" | awk '{print gsub(/,/,"")}')
       NumberOfCollumnsSecond=$(echo "${RowToInsertSecond}" | awk '{print gsub(/,/,"")}')
@@ -206,9 +204,9 @@ asMetrics()
       
       if [[ $NumberOfCollumnsFirst == 28 ]] && [[ $NumberOfCollumnsSecond == 28 ]] &&  [[ $NumberOfCollumnsPair == 28 ]]; then
         {
-         echo "$RowToInsertFirst"
-         "$RowToInsertSecond"
-         "$RowToInsertPair"
+         echo "$RowToInsertFirst
+         $RowToInsertSecond
+         $RowToInsertPair"
         } >> "${tmpdir}/AlignmentSummaryMetrics.csv"
       fi
     done < <(find . -name "*.merged.dedup.bam.alignment_summary_metrics" -type f -print0)
@@ -216,7 +214,7 @@ asMetrics()
 }
 parseFlagStatFile()
 {
-  grep -oP '([0-9]+\s\+\s[0-9]+)|(?<=\()[0-9][0-9]\.[0-9][0-9](?=\%)' "$FlagstatFile" | tr "\n" ")" | sed "s/[[:space:]]+[[:space:]]/,/g" | sed "s/[[:space:]]/,/g"
+  grep -oP '([0-9]+\s\+\s[0-9]+)|(?<=\()[0-9][0-9]\.[0-9][0-9](?=\%)' "$FlagstatFile" | tr "\n" "," | sed "s/[[:space:]]+[[:space:]]/,/g" | sed "s/[[:space:]]/,/g"
 }
 
 flMetrics()
@@ -228,7 +226,7 @@ flMetrics()
   while IFS= read -r -d '' D
     do
       ID=$(echo "${D}" | awk -F'.merged.dedup.bam.flagstat' '{ print $1 }' | awk -F'./' '{ print $2 }')
-      FlagstatFile=$(cat "$D")
+      FlagstatFile="$D"
       SampleEntry=$(grep "${ID}" "../../${PROJECTID}.csv")
       
       getDate
@@ -245,8 +243,7 @@ flMetrics()
 
 gcbMetrics() 
 {
-  # gc Bias Metrics tail -n +7 20
-  # not implemented
+  # gc Bias Metrics parser. For each Gc bias file a table is parsed, which contains the info about the gc bins for said sample
   cd "results/qc/statistics" || return
   while IFS= read -r -d '' D
     do
@@ -254,8 +251,14 @@ gcbMetrics()
       prefix="${PROJECTID},${currentRunID},${ID},"
       SampleEntry=$(grep "${ID}" "../../${PROJECTID}.csv")
       getDate
-      suffix=",${DATE}"
-      tail -n +8 "$D" | tr "\t" "," | grep . | awk -v prefix="$prefix" -v suffix="$suffix" '{print prefix $0 suffix}' >> "${tmpdir}/gcBiasMetrics.csv"
+      suffix=",${DATE}#"
+      Table=$(tail -n +8 "$D" | tr "\t" "," | grep . | awk -v prefix="$prefix" -v suffix="$suffix" '{print prefix $0 suffix}')
+      
+      NumberOfCollumnsCheck=$(echo "${Table}" | awk '{print gsub(/,/,"")}' | grep -v "14")
+      
+      if [[ $NumberOfCollumnsCheck == "" ]]; then
+        echo "${Table//# /\n}" >> "${tmpdir}/gcBiasMetrics.csv"
+      fi
   done < <(find . -name "*.merged.dedup.bam.gc_bias_metrics" -type f -print0)
   cd ../../../
 }
@@ -277,6 +280,7 @@ qdMetrics()
 
 setupFiles # Generate empty files with headers
 
+# shellcheck disable=SC2094
 while IFS= read -r -d '' project
   do
       cd "$project" || continue
@@ -315,7 +319,7 @@ while IFS= read -r -d '' project
             fi
           fi
           cd ..
-        done < <(find . -maxdepth 1 -mindepth 1 -type d -print0)
+        done < <(find . -maxdepth 1 -mindepth 1 -type d -print0) 
       cd ..
   done < <(find . -maxdepth 1 -mindepth 1 -type d -print0)
 
