@@ -252,6 +252,7 @@ gcbMetrics()
       SampleEntry=$(grep "${ID}" "../../${PROJECTID}.csv")
       getDate
       suffix=",${DATE}#"
+
       Table=$(tail -n +8 "$D" | tr "\t" "," | grep . | awk -v prefix="$prefix" -v suffix="$suffix" '{print prefix $0 suffix}')
       
       NumberOfCollumnsCheck=$(echo "${Table}" | awk '{print gsub(/,/,"")}' | grep -v "14")
