@@ -134,7 +134,7 @@ setupFiles()
     MaxCycles=0
   fi
   if [[ $QDMETRICS ]]; then
-    echo "tmpheader" > "${tmpdir}/QualityDistributionMetrics.csv"
+    printf '{"projects": [\n' > "${tmpdir}/QDtmp"
   fi
 }
 
@@ -364,7 +364,6 @@ finishOff()
 setupFiles # Generate empty files with headers
 
 # shellcheck disable=SC2094
-printf '{"projects": [\n' >> "${tmpdir}/QDtmp"
 while IFS= read -r -d '' project
   do
       cd "$project" || continue
