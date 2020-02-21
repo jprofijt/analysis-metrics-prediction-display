@@ -114,6 +114,7 @@ mkdir "${tmpdir}"
 
 setupFiles()
 {
+  # Function to add headers and prefixes to the enabled files
   if [[ $HSMETRICS ]]; then
     echo "PROJECT_ID,RUN,SAMPLE_ID,BAIT_SET,GENOME_SIZE,BAIT_TERRITORY,TARGET_TERRITORY,BAIT_DESIGN_EFFICIENCY,TOTAL_READS,PF_READS,PF_UNIQUE_READS,PCT_PF_READS,PCT_PF_UQ_READS,PF_UQ_READS_ALIGNED,PCT_PF_UQ_READS_ALIGNED,PF_BASES_ALIGNED,PF_UQ_BASES_ALIGNED,ON_BAIT_BASES,NEAR_BAIT_BASES,OFF_BAIT_BASES,ON_TARGET_BASES,PCT_SELECTED_BASES,PCT_OFF_BAIT,ON_BAIT_VS_SELECTED,MEAN_BAIT_COVERAGE,MEAN_TARGET_COVERAGE,MEDIAN_TARGET_COVERAGE,PCT_USABLE_BASES_ON_BAIT,PCT_USABLE_BASES_ON_TARGET,FOLD_ENRICHMENT,ZERO_CVG_TARGETS_PCT,PCT_EXC_DUPE,PCT_EXC_MAPQ,PCT_EXC_BASEQ,PCT_EXC_OVERLAP,PCT_EXC_OFF_TARGET,FOLD_80_BASE_PENALTY,PCT_TARGET_BASES_1X,PCT_TARGET_BASES_2X,PCT_TARGET_BASES_10X,PCT_TARGET_BASES_20X,PCT_TARGET_BASES_30X,PCT_TARGET_BASES_40X,PCT_TARGET_BASES_50X,PCT_TARGET_BASES_100X,HS_LIBRARY_SIZE,HS_PENALTY_10X,HS_PENALTY_20X,HS_PENALTY_30X,HS_PENALTY_40X,HS_PENALTY_50X,HS_PENALTY_100X,AT_DROPOUT,GC_DROPOUT,HET_SNP_SENSITIVITY,HET_SNP_Q,SAMPLE,LIBRARY,READ_GROUP,DATE" > "${tmpdir}/hsMetrics.csv"
   fi
@@ -130,7 +131,7 @@ setupFiles()
     echo "PROJECT_ID,RUN,SAMPLE_ID,ACCUMULATION_LEVEL,READS_USED,GC,WINDOWS,READ_STARTS,MEAN_BASE_QUALITY,NORMALIZED_COVERAGE,ERROR_BAR_WIDTH,SAMPLE,LIBRARY,READ_GROUP,DATE" > "${tmpdir}/gcBiasMetrics.csv"
   fi
   if [[ $QBCMETRICS ]]; then
-    echo "PROJECT_ID,RUN,SAMPLE_ID,#" > "${tmpdir}/QualityByCycleMetrics.csv"
+    echo "PROJECT_ID,RUN,SAMPLE_ID,DATE,#" > "${tmpdir}/QualityByCycleMetrics.csv"
     MaxCycles=0
   fi
   if [[ $QDMETRICS ]]; then
@@ -139,6 +140,7 @@ setupFiles()
 }
 
 getDate() {
+  # Function that gets the date from the sample entry
   DATE=$(echo "${SampleEntry}" | grep -oP '(?<=,)(([1-2][0-9])((0[1-9])|(1[0-2]))((0[1-9])|(1[1-9])|(2[1-9])|(3[0-1])))(?=,)' | head -1)
 }
 
@@ -268,23 +270,21 @@ gcbMetrics()
 
 qbcMetrics()
 {
-  # Quality by cycle metrics
-  # not implemented
-  # tail -n +9 20192278_6096546_DNA119865_548203_QXTR644_S07604514.merged.dedup.bam.quality_by_cycle_metrics | sed 's/[[:digit:]]\+\t//g'
+  # Function to parse Quality by cycle metrics
   cd "results/qc/statistics" || return
   while IFS= read -r -d '' D
     do
       ID=$(echo "${D}" | awk -F'.merged.dedup.bam.quality_by_cycle_metrics' '{ print $1 }' | awk -F'./' '{ print $2 }')
-      ROW="${PROJECTID},${currentRunID},${ID},"
-      DATA=$(tail -n +9 "$D" | sed 's/[[:digit:]]\+\t//g')
       SampleEntry=$(grep "${ID}" "../../${PROJECTID}.csv")
       getDate
+      ROW="${PROJECTID},${currentRunID},${ID},${DATE},"
+      DATA=$(tail -n +9 "$D" | sed 's/[[:digit:]]\+\t//g')
       NumberOfCycles=$(echo "$DATA" | grep -c . )
       if [[ $NumberOfCycles -gt $MaxCycles ]]; then
         MaxCycles=$NumberOfCycles
       fi
       Cycles=$(echo "$DATA" | tr '\n' ',')
-      ROW="${ROW},${Cycles}${DATE}"
+      ROW="${ROW},${Cycles}"
 
       NumberOfCollumns=$(echo "${ROW}" | awk '{print gsub(/,/,"")}')
       if [[ ! $NumberOfCollumns ]]; then
@@ -298,20 +298,7 @@ qbcMetrics()
 
 qdMetrics()
 {
-  # Quality distribution metrics
-  # not implemented
-  # Sample JSON
-  # projects: [{
-  #  ID: 'projectID',
-  #  runs: [{
-  #    samples: [{
-  #      'ID': 'sampleID',
-  #      'QUALITY':[14,21,27,31,32,36]
-  #      'COUNT_OF_Q':[12142323,32553235,6346342,2352643,634634]
-  #      'DATE': 123456
-  #    }],
-  #  }
-  #}]
+  # Function to parse Quality distribution metrics to json
   cd "results/qc/statistics" || return
   while IFS= read -r -d '' D
     do
@@ -342,6 +329,7 @@ qdMetrics()
 
 finishOff()
 {
+  # Function to finish off files and compress results
   cycleRange=$(seq -s , "$MaxCycles")
   appendableHeader="PROJECT_ID,RUN,SAMPLE_ID,${cycleRange},DATE"
   sed -i "1s/#/$appendableHeader/" "${tmpdir}/QualityByCycleMetrics.csv"
