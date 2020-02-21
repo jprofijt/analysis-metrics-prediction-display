@@ -34,7 +34,7 @@ if [[ ! -f "gatherMetricsConfig.sh" ]]; then
   FLMETRICS=0  # Flagstat metrics
   GCBMETRICS=0 # gc Bias metrics
   QBCMETRICS=0 # Quality by cycle metrics
-  QDMETRICS=0  # Quality distribution metrics
+  QDMETRICS=0  # Quality distribution metrics, Slow due to formatting
   BIMETRICS=0  # Bam index stats metrics"
   } > "gatherMetricsConfig.sh"
   
@@ -301,15 +301,17 @@ qdMetrics()
   # Quality distribution metrics
   # not implemented
   # Sample JSON
-  # PROJECT_ID: {
-  #  run01: {
-  #    sample01: {
+  # projects: [{
+  #  ID: 'projectID',
+  #  runs: [{
+  #    samples: [{
+  #      'ID': 'sampleID',
   #      'QUALITY':[14,21,27,31,32,36]
   #      'COUNT_OF_Q':[12142323,32553235,6346342,2352643,634634]
   #      'DATE': 123456
-  #    }
+  #    }],
   #  }
-  #}
+  #}]
   cd "results/qc/statistics" || return
   while IFS= read -r -d '' D
     do
@@ -324,15 +326,16 @@ qdMetrics()
         qualityArray="${qualityArray}${quality},"
         countArray="${countArray}${count},"
       done < <(tail -n +9 "$D" | grep .)
-
-      printf "\t\t\t\t\t{'ID':'%s',
-        \t\t\t\t\t'QUALITY':[%s],
-        \t\t\t\t\t'COUNT_OF_Q':[%s],
-        \t\t\t\t\t'DATE':%s},
-        " "$ID" "${qualityArray::-1}" "${countArray::-1}" "$DATE" >> "${tmpdir}/QDsampletmp"
+      if [[ $DATE == "" ]]; then 
+        DATE="null"
+      fi
+      printf '\n\t\t\t\t\t{"ID":"%s",
+        \t\t\t\t\t"QUALITY":[%s],
+        \t\t\t\t\t"COUNT_OF_Q":[%s],
+        \t\t\t\t\t"DATE":%s},' "$ID" "${qualityArray::-1}" "${countArray::-1}" "$DATE" >> "${tmpdir}/QDsampletmp"
   done < <(find . -name "*.merged.dedup.bam.quality_distribution_metrics" -type f -print0)
 
-  cat "${tmpdir}/QDsampletmp" >> "${tmpdir}/QDtmp"
+  sed '$ s/,$//' "${tmpdir}/QDsampletmp" >> "${tmpdir}/QDtmp"
   rm "${tmpdir}/QDsampletmp"
   cd ../../../
 }
@@ -361,7 +364,7 @@ finishOff()
 setupFiles # Generate empty files with headers
 
 # shellcheck disable=SC2094
-printf "projects: [\n" >> "${tmpdir}/QDtmp"
+printf '{"projects": [\n' >> "${tmpdir}/QDtmp"
 while IFS= read -r -d '' project
   do
       cd "$project" || continue
@@ -369,11 +372,14 @@ while IFS= read -r -d '' project
       progress=$((counter*100/total))
       echo -ne " ${progress}% of directories searched (${counter}/${total}) Project: ${PROJECTID}\r" # Progress indicator
       (( counter++ )) # Progress counter
-      printf "\t{\n\t\t'ID': '%s',\n" "$PROJECTID" >> "${tmpdir}/QDtmp"
-       printf "\t\truns: [\n" >> "${tmpdir}/QDtmp"
+      printf '\t{\n\t\t"ID": "%s",\n' "$PROJECTID" >> "${tmpdir}/QDtmp"
+      printf '\t\t"runs": [\n' >> "${tmpdir}/QDtmp"
+      runCount=$(ls -l | grep -c ^d)
+      runCounter=0
       # for run in project
       while IFS= read -r -d '' run
         do
+          (( runCounter++ ))
           cd "$run" || continue
           if [[ -d "results/qc/statistics/" ]] && [[ -f "results/${PROJECTID}.csv" ]]; then
             currentRunID=$(basename "$PWD")
@@ -397,16 +403,20 @@ while IFS= read -r -d '' project
               qbcMetrics
             fi
             if [[ $QDMETRICS ]]; then
-              printf "\t\t\t{\n\t\t\t'run':'%s',\n\t\t\t'samples':[\n" "$currentRunID">> "${tmpdir}/QDtmp"
+              printf '\t\t\t{\n\t\t\t"run":"%s",\n\t\t\t"samples":[\n' "$currentRunID">> "${tmpdir}/QDtmp"
                 qdMetrics
-              printf "\t\t\t]\n\t\t\t},\n" >> "${tmpdir}/QDtmp"
+              if [[ $runCounter == "$runCount" ]]; then 
+                printf "\n\t\t\t]\n\t\t\t}\n" >> "${tmpdir}/QDtmp"
+              else
+                printf "\n\t\t\t]\n\t\t\t},\n" >> "${tmpdir}/QDtmp"
+              fi
             fi
           fi
           cd ..
         done < <(find . -maxdepth 1 -mindepth 1 -type d -print0)
       cd ..
-      printf "\t\t],\n},\n" >> "${tmpdir}/QDtmp"
+      printf "\t\t]\n},\n" >> "${tmpdir}/QDtmp"
   done < <(find . -maxdepth 1 -mindepth 1 -type d -print0)
-printf "],\n" >> "${tmpdir}/QDtmp"
+printf "]}\n" >> "${tmpdir}/QDtmp"
 
 finishOff
