@@ -12,3 +12,4 @@ venv/
 *.swp
 insertsizes.csv
 wiki/
+docs/
