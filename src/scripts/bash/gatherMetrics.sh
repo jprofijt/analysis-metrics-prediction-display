@@ -137,6 +137,7 @@ setupFiles()
   if [[ $QDMETRICS ]]; then
     printf '{"projects": [\n' > "${tmpdir}/QDtmp"
   fi
+  echo "barcodeType,externalSampleID,sequencer,GAF_QC_Name,FatherAffected,MotherAffected,arrayFile,internalSampleID,prepKit,sampleType,flowcell,seqType,GCC_Analysis,arrayID,labStatusPhase,GS_ID,run,sequencingStartDate,Gender,MotherSampleId,barcode,FirstPriority,barcode1,barcode2,lane,FatherSampleId,project,capturingKit,contact,hpoIDs" > "${tmpdir}/samples.csv"
 }
 
 getDate() {
@@ -144,6 +145,10 @@ getDate() {
   DATE=$(echo "${SampleEntry}" | grep -oP '(?<=,)(([1-2][0-9])((0[1-9])|(1[0-2]))((0[1-9])|(1[1-9])|(2[1-9])|(3[0-1])))(?=,)' | head -1)
 }
 
+storeSampleSheet()
+{
+  tail -n +2  "results/${PROJECTID}.csv" >> "${tmpdir}/samples.csv"
+}
 hsMetrics()
 {
   # Function to parse hsMetrics file
@@ -370,7 +375,7 @@ while IFS= read -r -d '' project
           cd "$run" || continue
           if [[ -d "results/qc/statistics/" ]] && [[ -f "results/${PROJECTID}.csv" ]]; then
             currentRunID=$(basename "$PWD")
-            
+            storeSampleSheet
             if [[ $HSMETRICS ]]; then
               hsMetrics
             fi
