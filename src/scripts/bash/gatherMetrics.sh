@@ -49,6 +49,11 @@ then
         helpFunction
 fi
 
+if [[ ! -d "$directory" ]]; then 
+  echo "Input directory doesn't exist"
+  exit 1
+fi
+
 # if output already exists
 if [[ $force == 0 ]] &&  [[ -f $output ]]; then
         echo "$output already exists, overwrite? [y/n]:"
