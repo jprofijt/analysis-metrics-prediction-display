@@ -1,15 +1,17 @@
-from interop import py_interop_run_metrics as rm
-from interop import py_interop_run as run
+from interop import py_interop_run_metrics, py_interop_run, py_interop_summary
 
-run_info = run.info()
-run_info.read('/Users/jouke/Documents/Afstuderen/data/Info')
+run_folder = r"/Users/jouke/Downloads/MiSeqDemo"
 
-print('number of cycles %d' % run_info.total_cycles())
+run_metrics = py_interop_run_metrics.run_metrics()
+valid_to_load = py_interop_run.uchar_vector(py_interop_run.MetricCount, 0)
 
-run_metric = rm.run_metrics()
+valid_to_load[py_interop_run.Extraction]=1
 
-valid_to_load = run.uchar_vector(run.MetricCount, 0)
+run_metrics.read(run_folder, valid_to_load)
+extraction_metrics = run_metrics.extraction_metric_set()
 
-print(rm.list_summary_metrics_to_load(valid_to_load))
+print("Last Cycle: ", extraction_metrics.max_cycle())
 
+lane, tile, cycle, channel = (1, 1101, 15, 0)
 
+extraction_metric = extraction_metrics.get_metric(lane, tile, cycle)
