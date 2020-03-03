@@ -1,4 +1,4 @@
-#! /usr/bin/env python2.6
+#! /usr/bin/env python
 
 from __future__ import with_statement
 from __future__ import absolute_import
@@ -69,7 +69,7 @@ def createFile(file, header = ['externalSampleID', 'Gender', 'sequencingStartDat
     :rtype void
     """
     if not os.path.isfile(file):
-        with open(file, 'wb') as newCsv:
+        with open(file, 'wb', encoding='utf-8') as newCsv:
             writer = csv.writer(newCsv, delimiter=',', quotechar='#', quoting=csv.QUOTE_MINIMAL)
             writer.writerow(header)
     
@@ -82,10 +82,11 @@ def parseSampleSheet(infile, outfile, columns = ['externalSampleID', 'Gender', '
     :param columns: columns to parse, list of column names
     :rtype: void
     """
-    with open(infile, mode='r') as sampleSheet:
-            reader = csv.DictReader(sampleSheet, delimiter=",") 
+    with open(infile, mode=u'r', encoding='utf-8') as sampleSheet:
+            reader = csv.DictReader(sampleSheet, delimiter=",")
             for row in reader:
                 appendToFile([getItem(row, column) for column in columns], outfile)
+
 
 def parseArguments():
     u"""
@@ -95,8 +96,8 @@ def parseArguments():
     :rtype: class Files
     """
     parser = argparse.ArgumentParser(description=u'Parses sample sheet and adds to output file')
-    parser.add_argument(u'-i', u'--input', type=unicode,metavar="path/to/input", help=u'Sample sheet to read', required=True)
-    parser.add_argument(u'-o', u'--output', type=unicode,metavar="path/to/output", help=u'file to add results to', required=True)
+    parser.add_argument(u'-i', u'--input', type=unicode, metavar="path/to/input", help=u'Sample sheet to read', required=True)
+    parser.add_argument(u'-o', u'--output', type=unicode, metavar="path/to/output", help=u'file to add results to', required=True)
     args = parser.parse_args()
     files = Files(args.input, args.output)
     return files
