@@ -97,6 +97,7 @@ checkconfig()
   fi
   if [[ $INDEXSAMPLES ]]; then
     enabled="$enabled SampleIndex"
+  fi
   if [[ $enabled == "" ]]; then
     echo "No files enabled, exiting..."
     exit 1
