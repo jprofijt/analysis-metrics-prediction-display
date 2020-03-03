@@ -105,7 +105,7 @@ source "gatherMetricsConfig.sh"
 checkconfig
 
 HERE=$PWD
-SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+SCRIPTDIR="$( cd "$( dirname "../${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 counter=0
 cd "$directory" || exit # go to projects directory
 # shellcheck disable=SC2010
@@ -152,7 +152,7 @@ getDate() {
 
 storeSampleSheet()
 {
-  "python ${SCRIPTDIR}/../python/IndexSamples.py -i results/${PROJECTID}.csv -o ${tmpdir}samples.csv"
+  "python ${SCRIPTDIR}/python/IndexSamples.py -i results/${PROJECTID}.csv -o ${tmpdir}samples.csv"
 }
 hsMetrics()
 {
