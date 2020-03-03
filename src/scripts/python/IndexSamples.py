@@ -2,7 +2,7 @@
 
 from __future__ import with_statement
 from __future__ import absolute_import
-import csv, os, argparse, sys
+import csv, os, argparse, sys, shutil
 from io import open
 
 
@@ -10,9 +10,10 @@ class Files(object):
     u"""
     Class that contains input and output file locations
     """
-    def __init__(self, input, output):
+    def __init__(self, input, output, fail):
         self.input = input
         self.output = output
+        self.fail = fail
 
     def getInput(self):
         u"""
@@ -31,6 +32,8 @@ class Files(object):
         :rtype: str
         """
         return self.output
+    def getFailLocation(self):
+        return self.fail
 
 def getItem(row, columnID):
     u"""
@@ -69,7 +72,7 @@ def createFile(file, header = ['externalSampleID', 'Gender', 'sequencingStartDat
     :rtype void
     """
     if not os.path.isfile(file):
-        with open(file, 'wb', encoding='utf-8') as newCsv:
+        with open(file, 'wb') as newCsv:
             writer = csv.writer(newCsv, delimiter=',', quotechar='#', quoting=csv.QUOTE_MINIMAL)
             writer.writerow(header)
     
@@ -82,7 +85,7 @@ def parseSampleSheet(infile, outfile, columns = ['externalSampleID', 'Gender', '
     :param columns: columns to parse, list of column names
     :rtype: void
     """
-    with open(infile, mode=u'r', encoding='utf-8') as sampleSheet:
+    with open(infile, mode=u'r', errors='replace') as sampleSheet:
             reader = csv.DictReader(sampleSheet, delimiter=",")
             for row in reader:
                 appendToFile([getItem(row, column) for column in columns], outfile)
@@ -98,9 +101,16 @@ def parseArguments():
     parser = argparse.ArgumentParser(description=u'Parses sample sheet and adds to output file')
     parser.add_argument(u'-i', u'--input', type=unicode, metavar="path/to/input", help=u'Sample sheet to read', required=True)
     parser.add_argument(u'-o', u'--output', type=unicode, metavar="path/to/output", help=u'file to add results to', required=True)
+    parser.add_argument(u'-f', u'--faildirectory', type=unicode, metavar="path/to/failedSamplesDirectory", help=u'directory to store failed samples', required=True)
     args = parser.parse_args()
-    files = Files(args.input, args.output)
+    files = Files(args.input, args.output, args.faildirectory)
     return files
+
+def copyToFailed(input, storageDir):
+    if not os.path.isdir(storageDir):
+        os.mkdir(storageDir)
+    shutil.copy(input, storageDir)
+
 
 def main():
     u"""
@@ -112,7 +122,10 @@ def main():
     fileContainer = parseArguments()
 
     createFile(fileContainer.getOutput())
-    parseSampleSheet(fileContainer.getInput(), fileContainer.getOutput())
+    try:
+        parseSampleSheet(fileContainer.getInput(), fileContainer.getOutput())
+    except UnicodeEncodeError:
+        copyToFailed(fileContainer.getInput(), fileContainer.getFailLocation())
 
     return 0
 
