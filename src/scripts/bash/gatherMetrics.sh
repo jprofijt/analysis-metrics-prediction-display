@@ -92,8 +92,10 @@ checkconfig()
     enabled="$enabled QualityByCycleMetrics,"
   fi
   if [[ $QDMETRICS ]]; then
-    enabled="$enabled QualityDistributionMetrics"
+    enabled="$enabled QualityDistributionMetrics,"
   fi
+  if [[ $INDEXSAMPLES ]]; then
+    enabled="$enabled SampleIndex"
   if [[ $enabled == "" ]]; then
     echo "No files enabled, exiting..."
     exit 1
@@ -382,7 +384,9 @@ while IFS= read -r -d '' project
           cd "$run" || continue
           if [[ -d "results/qc/statistics/" ]] && [[ -f "results/${PROJECTID}.csv" ]]; then
             currentRunID=$(basename "$PWD")
-            storeSampleSheet
+            if [[ $INDEXSAMPLES ]]; then
+              storeSampleSheet
+            fi
             if [[ $HSMETRICS ]]; then
               hsMetrics
             fi
