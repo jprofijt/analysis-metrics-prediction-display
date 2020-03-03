@@ -1,17 +1,21 @@
-#! /usr/bin/env python3
+#! /usr/bin/env python2.6
 
+from __future__ import with_statement
+from __future__ import absolute_import
 import csv, os, argparse, sys
+from io import open
 
 
-class Files:
-    """
+class Files(object):
+    u"""
     Class that contains input and output file locations
     """
-    input = ''
-    output = ''
+    def __init__(self, input, output):
+        self.input = input
+        self.output = output
 
     def getInput(self):
-        """
+        u"""
         gets input file location
 
         :returns: input file path
@@ -20,7 +24,7 @@ class Files:
         return self.input
     
     def getOutput(self):
-        """
+        u"""
         gets output file location
 
         :returns: output file path
@@ -29,7 +33,7 @@ class Files:
         return self.output
 
 def getItem(row, columnID):
-    """
+    u"""
     Tries to get the item from column, If that fails enter NA
 
     :param row: dict with items in a row
@@ -40,24 +44,24 @@ def getItem(row, columnID):
     try:
         item = row[columnID]
         if len(item) == 0:
-            item = 'NA'
+            item = u'NA'
     except KeyError:
-        item = 'NA'
+        item = u'NA'
     return item
 
 def appendToFile(newRow, file):
-    """
+    u"""
     Adds a row of items to the file
 
     :param newRow: list of items to add in order
     :param file: file path
     :rtype: void
     """
-    with open(file,'a') as csvfile:
+    with open(file,'ab') as csvfile:
         csv.writer(csvfile).writerow(newRow)
 
 def createFile(file, header = ['externalSampleID', 'Gender', 'sequencingStartDate', 'sequencer', 'prepKit', 'capturingKit', 'project']):
-    """
+    u"""
     creates a new output file if it doesn't exist
 
     :param file: file path
@@ -65,12 +69,12 @@ def createFile(file, header = ['externalSampleID', 'Gender', 'sequencingStartDat
     :rtype void
     """
     if not os.path.isfile(file):
-        with open(file, 'w', newline='') as newCsv:
-            writer = csv.writer(newCsv)
+        with open(file, 'wb') as newCsv:
+            writer = csv.writer(newCsv, delimiter=',', quotechar='#', quoting=csv.QUOTE_MINIMAL)
             writer.writerow(header)
     
 def parseSampleSheet(infile, outfile, columns = ['externalSampleID', 'Gender', 'sequencingStartDate', 'sequencer', 'prepKit', 'capturingKit', 'project']):
-    """
+    u"""
     moves wanted columns from samplesheet to output csv
 
     :param infile: input sample sheet csv
@@ -84,21 +88,21 @@ def parseSampleSheet(infile, outfile, columns = ['externalSampleID', 'Gender', '
                 appendToFile([getItem(row, column) for column in columns], outfile)
 
 def parseArguments():
-    """
+    u"""
     Uses argparse to parse input and output file from commandline
     
     :returns: file locations
     :rtype: class Files
     """
-    parser = argparse.ArgumentParser(description='Parses sample sheet and adds to output file')
-    parser.add_argument('-i', '--input', type=str, help='Sample sheet to read')
-    parser.add_argument('-o', '--output', type=str, help='file to add results to')
-    files = Files()
-    parser.parse_args(namespace=files)
+    parser = argparse.ArgumentParser(description=u'Parses sample sheet and adds to output file')
+    parser.add_argument(u'-i', u'--input', type=unicode, help=u'Sample sheet to read')
+    parser.add_argument(u'-o', u'--output', type=unicode, help=u'file to add results to')
+    args = parser.parse_args()
+    files = Files(args.input, args.output)
     return files
 
 def main():
-    """
+    u"""
     Main function, calls argparser, then checks output file by calling createFile, and finally proccesses Sample sheet
 
     :returns: exit code
@@ -111,7 +115,7 @@ def main():
 
     return 0
 
-if __name__ == "__main__":
+if __name__ == u"__main__":
     sys.exit(main())
     
 
