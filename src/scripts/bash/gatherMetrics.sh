@@ -25,7 +25,7 @@ done
 
 if [[ ! -f "gatherMetricsConfig.sh" ]]; then
   {
-  echo "# Config file for gatherMetrics.sh
+  echo "  # Config file for gatherMetrics.sh
   # Metrics with value '1' are enabled and '0' are disabled
   
   ISMETRICS=0  # Insert Size Metrics
@@ -35,7 +35,8 @@ if [[ ! -f "gatherMetricsConfig.sh" ]]; then
   GCBMETRICS=0 # gc Bias metrics
   QBCMETRICS=0 # Quality by cycle metrics
   QDMETRICS=0  # Quality distribution metrics, Slow due to formatting
-  BIMETRICS=0  # Bam index stats metrics"
+  BIMETRICS=0  # Bam index stats metrics
+  INDEXSAMPLES=0 # Sample sheet index"
   } > "gatherMetricsConfig.sh"
   
   echo "Created Config file in gatherMetricsConfig.sh , exiting..."
