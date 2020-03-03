@@ -152,7 +152,9 @@ getDate() {
 
 storeSampleSheet()
 {
-  python "${SCRIPTDIR}/../python/IndexSamples.py" -i "results/${PROJECTID}.csv" -o "${tmpdir}samples.csv"
+  # parses samplesheet using IndexSamples python script
+  # outputs to samples.csv
+  python "${SCRIPTDIR}/../python/IndexSamples.py" -i "results/${PROJECTID}.csv" -o "${tmpdir}samples.csv" -f "${tmpdir}errorSamples/"
 }
 hsMetrics()
 {
