@@ -4,36 +4,17 @@ from __future__ import with_statement
 from __future__ import absolute_import
 import csv, os, argparse, sys, shutil
 from io import open
+from InputFiles import Files
 
-
-class Files(object):
-    u"""
-    Class that contains input and output file locations
-    """
+class FilesAndFailDir(Files):
     def __init__(self, input, output, fail):
-        self.input = input
-        self.output = output
+        Files.__init__(self, input, output)
         self.fail = fail
-
-    def getInput(self):
-        u"""
-        gets input file location
-
-        :returns: input file path
-        :rtype: str
-        """
-        return self.input
     
-    def getOutput(self):
-        u"""
-        gets output file location
-
-        :returns: output file path
-        :rtype: str
-        """
-        return self.output
     def getFailLocation(self):
         return self.fail
+
+
 
 def getItem(row, columnID):
     u"""
@@ -105,7 +86,7 @@ def parseArguments():
     parser.add_argument(u'-o', u'--output', type=unicode, metavar="path/to/output", help=u'file to add results to', required=True)
     parser.add_argument(u'-f', u'--faildirectory', type=unicode, metavar="path/to/failedSamplesDirectory", help=u'directory to store failed samples', required=True)
     args = parser.parse_args()
-    files = Files(args.input, args.output, args.faildirectory)
+    files = FilesAndFailDir(args.input, args.output, args.faildirectory)
     return files
 
 def copyToFailed(input, storageDir):
