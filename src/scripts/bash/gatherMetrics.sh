@@ -74,28 +74,28 @@ fi
 checkconfig() 
 {
   enabled=""
-  if [[ $HSMETRICS ]]; then
+  if [[ "$HSMETRICS" -eq "1" ]]; then
       enabled="$enabled HSmetrics,"
   fi
-  if [[ $ISMETRICS ]]; then
+  if [[ "$ISMETRICS" -eq "1" ]]; then
     enabled="$enabled insertSizeMetrics,"
   fi
-  if [[ $ASMETRICS ]]; then
+  if [[ "$ASMETRICS" -eq "1" ]]; then
     enabled="$enabled AlignmentSummaryMetrics,"
   fi
-  if [[ $FLMETRICS ]]; then
+  if [[ "$FLMETRICS" -eq "1" ]]; then
     enabled="$enabled FlagstatMetrics,"
   fi
-  if [[ $GCBMETRICS ]]; then
+  if [[ "$GCBMETRICS" -eq "1" ]]; then
     enabled="$enabled gcBiasMetrics,"
   fi
-  if [[ $QBCMETRICS ]]; then
+  if [[ "$QBCMETRICS" -eq "1" ]]; then
     enabled="$enabled QualityByCycleMetrics,"
   fi
-  if [[ $QDMETRICS ]]; then
+  if [[ "$QDMETRICS" -eq "1" ]]; then
     enabled="$enabled QualityDistributionMetrics,"
   fi
-  if [[ $INDEXSAMPLES ]]; then
+  if [[ "$INDEXSAMPLES" -eq "1" ]]; then
     enabled="$enabled SampleIndex"
   fi
   if [[ $enabled == "" ]]; then
@@ -107,6 +107,7 @@ checkconfig()
 # shellcheck disable=SC1091
 source "gatherMetricsConfig.sh"
 checkconfig
+
 
 HERE=$PWD
 SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -125,26 +126,26 @@ mkdir "${tmpdir}"
 setupFiles()
 {
   # Function to add headers and prefixes to the enabled files
-  if [[ $HSMETRICS ]]; then
+  if [[ "$HSMETRICS" -eq "1" ]]; then
     echo "PROJECT_ID,RUN,SAMPLE_ID,BAIT_SET,GENOME_SIZE,BAIT_TERRITORY,TARGET_TERRITORY,BAIT_DESIGN_EFFICIENCY,TOTAL_READS,PF_READS,PF_UNIQUE_READS,PCT_PF_READS,PCT_PF_UQ_READS,PF_UQ_READS_ALIGNED,PCT_PF_UQ_READS_ALIGNED,PF_BASES_ALIGNED,PF_UQ_BASES_ALIGNED,ON_BAIT_BASES,NEAR_BAIT_BASES,OFF_BAIT_BASES,ON_TARGET_BASES,PCT_SELECTED_BASES,PCT_OFF_BAIT,ON_BAIT_VS_SELECTED,MEAN_BAIT_COVERAGE,MEAN_TARGET_COVERAGE,MEDIAN_TARGET_COVERAGE,PCT_USABLE_BASES_ON_BAIT,PCT_USABLE_BASES_ON_TARGET,FOLD_ENRICHMENT,ZERO_CVG_TARGETS_PCT,PCT_EXC_DUPE,PCT_EXC_MAPQ,PCT_EXC_BASEQ,PCT_EXC_OVERLAP,PCT_EXC_OFF_TARGET,FOLD_80_BASE_PENALTY,PCT_TARGET_BASES_1X,PCT_TARGET_BASES_2X,PCT_TARGET_BASES_10X,PCT_TARGET_BASES_20X,PCT_TARGET_BASES_30X,PCT_TARGET_BASES_40X,PCT_TARGET_BASES_50X,PCT_TARGET_BASES_100X,HS_LIBRARY_SIZE,HS_PENALTY_10X,HS_PENALTY_20X,HS_PENALTY_30X,HS_PENALTY_40X,HS_PENALTY_50X,HS_PENALTY_100X,AT_DROPOUT,GC_DROPOUT,HET_SNP_SENSITIVITY,HET_SNP_Q,SAMPLE,LIBRARY,READ_GROUP,DATE" > "${tmpdir}/hsMetrics.csv"
   fi
-  if [[ $ISMETRICS ]]; then
+  if [[ "$ISMETRICS" -eq "1" ]]; then
     echo "PROJECT_ID,RUN,SAMPLE_ID,MEDIAN_INSERT_SIZE,MEDIAN_ABSOLUTE_DEVIATION,MIN_INSERT_SIZE,MAX_INSERT_SIZE,MEAN_INSERT_SIZE,STANDARD_DEVIATION,READ_PAIRS,PAIR_ORIENTATION,WIDTH_OF_10_PERCENT,WIDTH_OF_20_PERCENT,WIDTH_OF_30_PERCENT,WIDTH_OF_40_PERCENT,WIDTH_OF_50_PERCENT,WIDTH_OF_60_PERCENT,WIDTH_OF_70_PERCENT,WIDTH_OF_80_PERCENT,WIDTH_OF_90_PERCENT,WIDTH_OF_99_PERCENT,SAMPLE,LIBRARY,READ_GROUP,DATE" > "${tmpdir}/insertSizeMetrics.csv"
   fi
-  if [[ $ASMETRICS ]]; then
+  if [[ "$ASMETRICS" -eq "1" ]]; then
     echo "PROJECT_ID,RUN,SAMPLE_ID,CATEGORY,TOTAL_READS,PF_READS,PCT_PF_READS,PF_NOISE_READS,PF_READS_ALIGNED,PCT_PF_READS_ALIGNED,PF_ALIGNED_BASES,PF_HQ_ALIGNED_READS,PF_HQ_ALIGNED_BASES,PF_HQ_ALIGNED_Q20_BASES,PF_HQ_MEDIAN_MISMATCHES,PF_MISMATCH_RATE,PF_HQ_ERROR_RATE,PF_INDEL_RATE,MEAN_READ_LENGTH,READS_ALIGNED_IN_PAIRS,PCT_READS_ALIGNED_IN_PAIRS,BAD_CYCLES,STRAND_BALANCE,PCT_CHIMERAS,PCT_ADAPTER,SAMPLE,LIBRARY,READ_GROUP,DATE" > "${tmpdir}/AlignmentSummaryMetrics.csv"
   fi
-  if [[ $FLMETRICS ]]; then
+  if [[ "$FLMETRICS" -eq "1" ]]; then
     echo "PROJECT_ID,RUN,SAMPLE_ID,TOTAL_PASS,TOTAL_FAIL,SECONDARY_PASS,SECONDARY_FAIL,SUPPLEMENTARY_PASS,SUPPLEMENTARY_FAIL,DUPLICATE_PASS,DUPLICATE_FAIL,MAPPED_PASS,MAPPED_FAIL,MAPPED_PCT,PAIRED_SEQ_PASS,PAIRED_SEQ_FAIL,R1_PASS,R1_FAIL,R2_PASS,R2_FAIL,PROPER_PAIR_PASS,PROPER_PAIR_FAIL,BOTH_MAPPED_PASS,BOTH_MAPPED_FAIL,SINGLETONS_PASS,SINGLETONS_FAIL,SINGLETONS_PCT,MATE_ON_DIFF_CHR_LOW_PASS,MATE_ON_DIFF_CHR_LOW_FAIL,MATE_ON_DIFF_CHR_HIGHQ_PASS,MATE_ON_DIFF_CHR_HIGHQ_FAIL,DATE" > "${tmpdir}/FlagstatMetrics.csv"
   fi
-  if [[ $GCBMETRICS ]]; then
+  if [[ "$GCBMETRICS" -eq "1" ]]; then
     echo "PROJECT_ID,RUN,SAMPLE_ID,ACCUMULATION_LEVEL,READS_USED,GC,WINDOWS,READ_STARTS,MEAN_BASE_QUALITY,NORMALIZED_COVERAGE,ERROR_BAR_WIDTH,SAMPLE,LIBRARY,READ_GROUP,DATE" > "${tmpdir}/gcBiasMetrics.csv"
   fi
-  if [[ $QBCMETRICS ]]; then
+  if [[ "$QBCMETRICS" -eq "1" ]]; then
     echo "PROJECT_ID,RUN,SAMPLE_ID,DATE,#" > "${tmpdir}/QualityByCycleMetrics.csv"
     MaxCycles=0
   fi
-  if [[ $QDMETRICS ]]; then
+  if [[ "$QDMETRICS" -eq "1" ]]; then
     printf '{"projects": [\n' > "${tmpdir}/QDtmp"
   fi
 }
@@ -193,7 +194,7 @@ isMetrics()
       getDate
       RowToInsert="${PROJECTID},${currentRunID},${ID},${ROW},${DATE}"
       NumberOfCollumns=$(echo "${RowToInsert}" | awk '{print gsub(/,/,"")}')
-      if [[ $NumberOfCollumns == 24 ]]; then # if colums are complete insert data in tmp file
+      if [[ "$NumberOfCollumns" == "24" ]]; then # if colums are complete insert data in tmp file
         echo "${RowToInsert}" >> "${tmpdir}/insertSizeMetrics.csv"
       fi
     done < <(find . -name "*.merged.dedup.bam.insert_size_metrics" -type f -print0)
@@ -346,10 +347,12 @@ qdMetrics()
 finishOff()
 {
   # Function to finish off files and compress results
-  cycleRange=$(seq -s , "$MaxCycles")
-  appendableHeader="PROJECT_ID,RUN,SAMPLE_ID,${cycleRange},DATE"
-  sed -i "1s/#/$appendableHeader/" "${tmpdir}/QualityByCycleMetrics.csv"
-  mv "${tmpdir}/QDtmp" "${tmpdir}/QualityDistributionMetrics.json"
+  if [[ "$QDMETRICS" -eq "1" ]]; then
+    cycleRange=$(seq -s , "$MaxCycles")
+    appendableHeader="PROJECT_ID,RUN,SAMPLE_ID,${cycleRange},DATE"
+    sed -i "1s/#/$appendableHeader/" "${tmpdir}/QualityByCycleMetrics.csv"
+    mv "${tmpdir}/QDtmp" "${tmpdir}/QualityDistributionMetrics.json"
+  fi
   cd "$HERE" || exit
   echo -ne '\n'
   echo "Completed gathering metrics from ${total} directories"
@@ -375,8 +378,10 @@ while IFS= read -r -d '' project
       progress=$((counter*100/total))
       echo -ne " ${progress}% of directories searched (${counter}/${total}) Project: ${PROJECTID}\r" # Progress indicator
       (( counter++ )) # Progress counter
-      printf '\t{\n\t\t"ID": "%s",\n' "$PROJECTID" >> "${tmpdir}/QDtmp"
-      printf '\t\t"runs": [\n' >> "${tmpdir}/QDtmp"
+      if [[ "$QDMETRICS" -eq "1" ]]; then
+        printf '\t{\n\t\t"ID": "%s",\n' "$PROJECTID" >> "${tmpdir}/QDtmp"
+        printf '\t\t"runs": [\n' >> "${tmpdir}/QDtmp"
+      fi
       runCount=$(ls -l | grep -c ^d)
       runCounter=0
       # for run in project
@@ -386,31 +391,31 @@ while IFS= read -r -d '' project
           cd "$run" || continue
           if [[ -d "results/qc/statistics/" ]] && [[ -f "results/${PROJECTID}.csv" ]]; then
             currentRunID=$(basename "$PWD")
-            if [[ $INDEXSAMPLES ]]; then
+            if [[ "$INDEXSAMPLES" -eq "1" ]]; then
               storeSampleSheet
             fi
-            if [[ $HSMETRICS ]]; then
+            if [[ "$HSMETRICS" -eq "1" ]]; then
               hsMetrics
             fi
-            if [[ $ISMETRICS ]]; then
+            if [[ "$ISMETRICS" -eq "1" ]]; then
               isMetrics
             fi
-            if [[ $ASMETRICS ]]; then
+            if [[ "$ASMETRICS" -eq "1" ]]; then
               asMetrics
             fi
-            if [[ $FLMETRICS ]]; then
+            if [[ "$FLMETRICS" -eq "1" ]]; then
               flMetrics
             fi
-            if [[ $GCBMETRICS ]]; then
+            if [[ "$GCBMETRICS" -eq "1" ]]; then
               gcbMetrics
             fi
-            if [[ $QBCMETRICS ]]; then
+            if [[ "$QBCMETRICS" -eq "1" ]]; then
               qbcMetrics
             fi
-            if [[ $QDMETRICS ]]; then
-              printf '\t\t\t{\n\t\t\t"run":"%s",\n\t\t\t"samples":[\n' "$currentRunID">> "${tmpdir}/QDtmp"
+            if [[ "$QDMETRICS" -eq "1" ]]; then
+              printf '\t\t\t{\n\t\t\t"run":"%s",\n\t\t\t"samples":[\n' "$currentRunID" >> "${tmpdir}/QDtmp"
                 qdMetrics
-              if [[ $runCounter == "$runCount" ]]; then 
+              if [[ "$runCounter" -eq "$runCount" ]] || [[ "$runCounter" -gt "$runCount" ]]; then 
                 printf "\n\t\t\t]\n\t\t\t}\n" >> "${tmpdir}/QDtmp"
               else
                 printf "\n\t\t\t]\n\t\t\t},\n" >> "${tmpdir}/QDtmp"
@@ -420,8 +425,12 @@ while IFS= read -r -d '' project
           cd ..
         done < <(find . -maxdepth 1 -mindepth 1 -type d -print0)
       cd ..
-      printf "\t\t]\n},\n" >> "${tmpdir}/QDtmp"
+      if [[ "$QDMETRICS" -eq "1" ]]; then
+        printf "\t\t]\n},\n" >> "${tmpdir}/QDtmp"
+      fi
   done < <(find . -maxdepth 1 -mindepth 1 -type d -print0)
-printf "]}\n" >> "${tmpdir}/QDtmp"
+  if [[ "$QDMETRICS" -eq "1" ]]; then
+    printf "]}\n" >> "${tmpdir}/QDtmp"
+  fi
 
 finishOff
