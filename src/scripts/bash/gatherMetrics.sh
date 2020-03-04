@@ -389,36 +389,38 @@ while IFS= read -r -d '' project
         do
           (( runCounter++ ))
           cd "$run" || continue
-          if [[ -d "results/qc/statistics/" ]] && [[ -f "results/${PROJECTID}.csv" ]]; then
+          if [[ -f "results/${PROJECTID}.csv" ]]; then
             currentRunID=$(basename "$PWD")
             if [[ "$INDEXSAMPLES" -eq "1" ]]; then
               storeSampleSheet
             fi
-            if [[ "$HSMETRICS" -eq "1" ]]; then
-              hsMetrics
-            fi
-            if [[ "$ISMETRICS" -eq "1" ]]; then
-              isMetrics
-            fi
-            if [[ "$ASMETRICS" -eq "1" ]]; then
-              asMetrics
-            fi
-            if [[ "$FLMETRICS" -eq "1" ]]; then
-              flMetrics
-            fi
-            if [[ "$GCBMETRICS" -eq "1" ]]; then
-              gcbMetrics
-            fi
-            if [[ "$QBCMETRICS" -eq "1" ]]; then
-              qbcMetrics
-            fi
-            if [[ "$QDMETRICS" -eq "1" ]]; then
-              printf '\t\t\t{\n\t\t\t"run":"%s",\n\t\t\t"samples":[\n' "$currentRunID" >> "${tmpdir}/QDtmp"
-                qdMetrics
-              if [[ "$runCounter" -eq "$runCount" ]] || [[ "$runCounter" -gt "$runCount" ]]; then 
-                printf "\n\t\t\t]\n\t\t\t}\n" >> "${tmpdir}/QDtmp"
-              else
-                printf "\n\t\t\t]\n\t\t\t},\n" >> "${tmpdir}/QDtmp"
+            if [[ -d "results/qc/statistics/" ]]; then
+              if [[ "$HSMETRICS" -eq "1" ]]; then
+                hsMetrics
+              fi
+              if [[ "$ISMETRICS" -eq "1" ]]; then
+                isMetrics
+              fi
+              if [[ "$ASMETRICS" -eq "1" ]]; then
+                asMetrics
+              fi
+              if [[ "$FLMETRICS" -eq "1" ]]; then
+                flMetrics
+              fi
+              if [[ "$GCBMETRICS" -eq "1" ]]; then
+                gcbMetrics
+              fi
+              if [[ "$QBCMETRICS" -eq "1" ]]; then
+                qbcMetrics
+              fi
+              if [[ "$QDMETRICS" -eq "1" ]]; then
+                printf '\t\t\t{\n\t\t\t"run":"%s",\n\t\t\t"samples":[\n' "$currentRunID" >> "${tmpdir}/QDtmp"
+                  qdMetrics
+                if [[ "$runCounter" -eq "$runCount" ]] || [[ "$runCounter" -gt "$runCount" ]]; then 
+                  printf "\n\t\t\t]\n\t\t\t}\n" >> "${tmpdir}/QDtmp"
+                else
+                  printf "\n\t\t\t]\n\t\t\t},\n" >> "${tmpdir}/QDtmp"
+                fi
               fi
             fi
           fi

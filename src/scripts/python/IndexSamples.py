@@ -92,6 +92,8 @@ def parseSampleSheet(infile, outfile, columns = ['externalSampleID', 'Gender', '
 
 
 def parseArguments():
+    # Python 2, disable unicode error
+    # pylint: disable=undefined-variable
     u"""
     Uses argparse to parse input and output file from commandline
     
