@@ -145,9 +145,6 @@ setupFiles()
     echo "PROJECT_ID,RUN,SAMPLE_ID,DATE,#" > "${tmpdir}/QualityByCycleMetrics.csv"
     MaxCycles=0
   fi
-  if [[ "$QDMETRICS" -eq "1" ]]; then
-    printf '{"projects": [\n' > "${tmpdir}/QDtmp"
-  fi
 }
 
 getDate() {
@@ -320,38 +317,18 @@ qdMetrics()
   while IFS= read -r -d '' D
     do
       ID=$(echo "${D}" | awk -F'.merged.dedup.bam.quality_distribution_metrics' '{ print $1 }' | awk -F'./' '{ print $2 }')
-      SampleEntry=$(grep "${ID}" "../../${PROJECTID}.csv")
-      getDate
-      qualityArray=""
-      countArray=""
-     while read -r line ; do
-        quality=$(echo "$line" | cut -f1)
-        count=$(echo "$line" | cut -f2)
-        qualityArray="${qualityArray}${quality},"
-        countArray="${countArray}${count},"
-      done < <(tail -n +9 "$D" | grep .)
-      if [[ $DATE == "" ]]; then 
-        DATE="null"
-      fi
-      printf '\n\t\t\t\t\t{"ID":"%s",
-        \t\t\t\t\t"QUALITY":[%s],
-        \t\t\t\t\t"COUNT_OF_Q":[%s],
-        \t\t\t\t\t"DATE":%s},' "$ID" "${qualityArray::-1}" "${countArray::-1}" "$DATE" >> "${tmpdir}/QDsampletmp"
+      python "${SCRIPTDIR}/../python/ParseQualityDistributionMetrics.py" -i "$D" -o "${tmpdir}QualityDistributions.csv" -s "$ID" -r "$currentRunID"
   done < <(find . -name "*.merged.dedup.bam.quality_distribution_metrics" -type f -print0)
-
-  sed '$ s/,$//' "${tmpdir}/QDsampletmp" >> "${tmpdir}/QDtmp"
-  rm "${tmpdir}/QDsampletmp"
   cd ../../../
 }
 
 finishOff()
 {
   # Function to finish off files and compress results
-  if [[ "$QDMETRICS" -eq "1" ]]; then
+  if [[ "$QBCMETRICS" -eq "1" ]]; then
     cycleRange=$(seq -s , "$MaxCycles")
     appendableHeader="PROJECT_ID,RUN,SAMPLE_ID,${cycleRange},DATE"
     sed -i "1s/#/$appendableHeader/" "${tmpdir}/QualityByCycleMetrics.csv"
-    mv "${tmpdir}/QDtmp" "${tmpdir}/QualityDistributionMetrics.json"
   fi
   cd "$HERE" || exit
   echo -ne '\n'
@@ -378,10 +355,6 @@ while IFS= read -r -d '' project
       progress=$((counter*100/total))
       echo -ne " ${progress}% of directories searched (${counter}/${total}) Project: ${PROJECTID}\r" # Progress indicator
       (( counter++ )) # Progress counter
-      if [[ "$QDMETRICS" -eq "1" ]]; then
-        printf '\t{\n\t\t"ID": "%s",\n' "$PROJECTID" >> "${tmpdir}/QDtmp"
-        printf '\t\t"runs": [\n' >> "${tmpdir}/QDtmp"
-      fi
       runCount=$(ls -l | grep -c ^d)
       runCounter=0
       # for run in project
@@ -414,25 +387,13 @@ while IFS= read -r -d '' project
                 qbcMetrics
               fi
               if [[ "$QDMETRICS" -eq "1" ]]; then
-                printf '\t\t\t{\n\t\t\t"run":"%s",\n\t\t\t"samples":[\n' "$currentRunID" >> "${tmpdir}/QDtmp"
-                  qdMetrics
-                if [[ "$runCounter" -eq "$runCount" ]] || [[ "$runCounter" -gt "$runCount" ]]; then 
-                  printf "\n\t\t\t]\n\t\t\t}\n" >> "${tmpdir}/QDtmp"
-                else
-                  printf "\n\t\t\t]\n\t\t\t},\n" >> "${tmpdir}/QDtmp"
-                fi
+                qdMetrics
               fi
             fi
           fi
           cd ..
         done < <(find . -maxdepth 1 -mindepth 1 -type d -print0)
       cd ..
-      if [[ "$QDMETRICS" -eq "1" ]]; then
-        printf "\t\t]\n},\n" >> "${tmpdir}/QDtmp"
-      fi
   done < <(find . -maxdepth 1 -mindepth 1 -type d -print0)
-  if [[ "$QDMETRICS" -eq "1" ]]; then
-    printf "]}\n" >> "${tmpdir}/QDtmp"
-  fi
 
 finishOff

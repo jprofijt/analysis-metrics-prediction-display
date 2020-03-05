@@ -31,9 +31,14 @@ class QualityDistribution(object):
     def toList(self):
         out = []
         for quality in self.QD:
-            out.append("{quality}:{self.QD[quality]}")
+            out.append("{0}:{1}".format(quality, self.QD[quality]))
         return out
-        
+    
+    def getRunID(self):
+        return self.runID
+    
+    def getSampleID(self):
+        return self.sampleID
 
 def parseArguments():
     # pylint: disable=undefined-variable
@@ -51,24 +56,27 @@ def decomment(csvfile):
         raw = row.split(u'#')[0].strip()
         if raw: yield raw
 
-def parseQDM(qd: QualityDistribution, input):
-    
+def parseQDM(qd, input):
     with open(input, u'r') as qdm:
         reader = csv.DictReader(decomment(qdm), delimiter="\t")
         for row in reader:
            qd.addQualityBin(row["QUALITY"], row["COUNT_OF_Q"])
     return qd
 
-def writeToCsv(qd: QualityDistribution, output):
-    with open(output, 'wb'):
+def writeToCsv(qd, output):
+    openType = u'ab'
+    if not os.path.exists(output):
+        openType = u'wb'
+
+    with open(output, openType) as csvFile:
         row = [qd.getRunID(), qd.getSampleID()] + qd.toList()
-        csv.writer(output).writerow(qd.toList())
+        csv.writer(csvFile).writerow(row)
 
 def main():
     args = parseArguments()
     qd = QualityDistribution(args.getRunID(), args.getSampleID())
     qd = parseQDM(qd, args.getInput())
-    writeToCsv(qd, args.getOutput())
+    writeToCsv(qd, args.output)
     return 0
 
 if __name__ == "__main__":

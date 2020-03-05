@@ -13,8 +13,8 @@ class FilesAndFailDir(Files):
     
     def getFailLocation(self):
         return self.fail
-
-
+    
+    
 
 def getItem(row, columnID):
     u"""
