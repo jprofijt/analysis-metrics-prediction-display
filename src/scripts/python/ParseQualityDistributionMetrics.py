@@ -34,6 +34,12 @@ class QualityDistribution(object):
             out.append("{0}:{1}".format(quality, self.QD[quality]))
         return out
     
+    def toDatabaseEntry(self):
+        out = []
+        for quality in self.QD:
+            out.append((self.sampleID, quality, self.QD[quality]))
+        return out
+        
     def getRunID(self):
         return self.runID
     
