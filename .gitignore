@@ -13,3 +13,5 @@ venv/
 insertsizes.csv
 wiki/
 docs/
+*.pyc
+*.csv
