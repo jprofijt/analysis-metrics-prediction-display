@@ -1,9 +1,11 @@
 #! /usr/bin/env python2.7
+# pylint: disable=relative-beyond-top-level
 
 from __future__ import with_statement
 import sqlite3, csv, sys
-from scripts.python.DataBase.DatabaseConnector import databaseConnectorInterface
-from scripts.python.ParseQualityDistributionMetrics import QualityDistribution
+from .DatabaseConnector import databaseConnectorInterface
+from ..ParseQualityDistributionMetrics import QualityDistribution
+from ..DataTypes.QualityPerCycle import QualityPerCycle
 
 class sqlite3Database(databaseConnectorInterface):
     def __init__(self, databasefile):
@@ -50,6 +52,11 @@ class sqlite3Database(databaseConnectorInterface):
     
     def addQualityDistribution(self, QualityDistribution):
         self.cursor.executemany("INSERT INTO QualityDistributions VALUES (?,?,?)", QualityDistribution.toDatabaseEntry())
+        self.connection.commit()
+        return 0
+    
+    def addQualityByCycle(self, QualityByCycle: QualityPerCycle):
+        self.cursor.executemany("INSERT INTO QualityByCycle VALUES (?,?,?,?)", QualityByCycle.toDatabaseEntry())
         self.connection.commit()
         return 0
     

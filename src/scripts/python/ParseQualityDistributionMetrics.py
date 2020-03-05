@@ -1,9 +1,12 @@
 #! /usr/bin/env python2.7
+#! /usr/bin/env python2.7
+# pylint: disable=relative-beyond-top-level
 
 from __future__ import with_statement
 from __future__ import absolute_import
 import csv, os, argparse, sys, shutil
-from InputFiles import Files
+from .DataTypes.Files import Files
+from .DataTypes.QualityDistribution import QualityDistribution
 from io import open
 
 class FileArguments(Files):
@@ -18,33 +21,6 @@ class FileArguments(Files):
     def getRunID(self):
         return self.run
 
-class QualityDistribution(object):
-    QD = {}
-    def __init__(self, runID, sampleID):
-        self.runID = runID
-        self.sampleID = sampleID
-
-    def addQualityBin(self, Quality, Count):
-        self.QD[Quality] = Count
-        return 0
-    
-    def toList(self):
-        out = []
-        for quality in self.QD:
-            out.append("{0}:{1}".format(quality, self.QD[quality]))
-        return out
-    
-    def toDatabaseEntry(self):
-        out = []
-        for quality in self.QD:
-            out.append((self.sampleID, quality, self.QD[quality]))
-        return out
-        
-    def getRunID(self):
-        return self.runID
-    
-    def getSampleID(self):
-        return self.sampleID
 
 def parseArguments():
     # pylint: disable=undefined-variable

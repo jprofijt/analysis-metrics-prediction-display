@@ -23,4 +23,3 @@ class Files(object):
         :rtype: str
         """
         return self.output
-
