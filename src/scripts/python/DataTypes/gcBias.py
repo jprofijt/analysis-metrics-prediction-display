@@ -1,14 +1,19 @@
-class gcBias(object):
+#! /usr/bin/env python2.7
+# pylint: disable=relative-beyond-top-level
+
+from .DatabaseType import DatabaseType
+
+class gcBias(DatabaseType):
     def __init__(self, sampleID, runID, AL, ReadsUsed, GC, Windows, ReadStart, MeanBaseQuality, NormalizedCoverage, ErrorBar):
-        self.sampleID = sampleID
-        self.runID = runID
-        self.ReadsUsed = ReadsUsed
-        self.GC = GC
-        self.Windows = Windows
-        self.ReadStart = ReadStart
-        self.MeanBaseQuality = MeanBaseQuality
-        self.NormalizedCoverage = NormalizedCoverage
-        self.ErrorBar = ErrorBar
+        self.sampleID = str(sampleID)
+        self.runID = str(runID)
+        self.ReadsUsed = str(ReadsUsed)
+        self.GC = str(GC)
+        self.Windows = str(Windows)
+        self.ReadStart = str(ReadStart)
+        self.MeanBaseQuality = str(MeanBaseQuality)
+        self.NormalizedCoverage = str(NormalizedCoverage)
+        self.ErrorBar = str(ErrorBar)
     
     def toDatabaseEntry(self):
         return (

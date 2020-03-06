@@ -1,26 +1,31 @@
-class AlignmentSummaryMetrics(object):
+#! /usr/bin/env python2.7
+# pylint: disable=relative-beyond-top-level
+
+from .DatabaseType import DatabaseType
+
+class AlignmentSummaryMetrics(DatabaseType):
     def __init__(self, SampleID ,RunID ,Category ,TotalReads,PFreads,PFnoise,PFaligned,PFHQaligned,PFalignedBases,PFHQalignedBases,PFHQalignedQ20Bases,PFHQmedianMismatches,PFmismatchRate ,PFHQErrorRate ,PFindelRate ,MeanReadLenght ,ReadsAllignedInPairs,BadCycles,StrandBalance ,ChimerasPercentage ,AdapterPercentage):
-        self.SampleID = SampleID  
-        self.RunID = RunID  
-        self.Category = Category  
-        self.TotalReads = TotalReads
-        self.PFreads = PFreads
-        self.PFnoise = PFnoise
-        self.PFaligned = PFaligned
-        self.PFHQaligned = PFHQaligned
-        self.PFalignedBases = PFalignedBases
-        self.PFHQalignedBases = PFHQalignedBases
-        self.PFHQalignedQ20Bases = PFHQalignedQ20Bases
-        self.PFHQmedianMismatches = PFHQmedianMismatches
-        self.PFmismatchRate = PFmismatchRate 
-        self.PFHQErrorRate = PFHQErrorRate 
-        self.PFindelRate = PFindelRate 
-        self.MeanReadLenght = MeanReadLenght 
-        self.ReadsAllignedInPairs = ReadsAllignedInPairs
-        self.BadCycles = BadCycles
-        self.StrandBalance = StrandBalance 
-        self.ChimerasPercentage = ChimerasPercentage 
-        self.AdapterPercentage = AdapterPercentage 
+        self.SampleID = str(SampleID)  
+        self.RunID = str(RunID)  
+        self.Category = str(Category)  
+        self.TotalReads = str(TotalReads)
+        self.PFreads = str(PFreads)
+        self.PFnoise = str(PFnoise)
+        self.PFaligned = str(PFaligned)
+        self.PFHQaligned = str(PFHQaligned)
+        self.PFalignedBases = str(PFalignedBases)
+        self.PFHQalignedBases = str(PFHQalignedBases)
+        self.PFHQalignedQ20Bases = str(PFHQalignedQ20Bases)
+        self.PFHQmedianMismatches = str(PFHQmedianMismatches)
+        self.PFmismatchRate = str(PFmismatchRate) 
+        self.PFHQErrorRate = str(PFHQErrorRate) 
+        self.PFindelRate = str(PFindelRate) 
+        self.MeanReadLenght = str(MeanReadLenght) 
+        self.ReadsAllignedInPairs = str(ReadsAllignedInPairs)
+        self.BadCycles = str(BadCycles)
+        self.StrandBalance = str(StrandBalance) 
+        self.ChimerasPercentage = str(ChimerasPercentage) 
+        self.AdapterPercentage = str(AdapterPercentage) 
 
     def toDatabaseEntry(self):
         return (

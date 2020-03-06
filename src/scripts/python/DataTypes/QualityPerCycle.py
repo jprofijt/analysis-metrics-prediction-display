@@ -1,6 +1,11 @@
 import itertools
 
-class QualityPerCycle(object):
+#! /usr/bin/env python2.7
+# pylint: disable=relative-beyond-top-level
+
+from .DatabaseType import DatabaseType
+
+class QualityPerCycle(DatabaseType):
     def __init__(self, SampleID, RunID, cycles, quality):
         self.sampleID = SampleID
         self.runID = RunID
@@ -10,7 +15,7 @@ class QualityPerCycle(object):
     def toDatabaseEntry(self):
         output = []
         for cycle, quality in itertools.zip_longest(self.cycles, self.quality):
-            output.append((self.sampleID, self.runID, cycle, quality))
+            output.append((str(self.sampleID), str(self.runID), str(cycle), str(quality)))
         return output
 
         

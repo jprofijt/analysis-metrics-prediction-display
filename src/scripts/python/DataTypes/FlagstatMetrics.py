@@ -1,33 +1,38 @@
-class FlagstatMetric(object):
+#! /usr/bin/env python2.7
+# pylint: disable=relative-beyond-top-level
+
+from .DatabaseType import DatabaseType
+
+class FlagstatMetric(DatabaseType):
     def __init__(self, SampleID, RunID,TotalPass,TotalFail,SecondaryPass,SecondaryFail,SupplementaryPass,SupplementaryFail,DuplicatePass,DuplicateFail,MappedPass,MappedFail,MappedPercentage ,PairedSeqPass,PairedSeqFail,Read1Pass,Read1Fail,Read2Pass,Read2Fail,PoperPairPass,ProperPairFail,SingletonsPass,SingletonsFail,SingletonsPercentage ,MateOnDiffChromosomeLowPass,MateOnDiffChromosomeLowFail,MateOnDiffChromosomeHighPass,MateOnDiffChromosomeHighFail):
-        self.SampleID = SampleID  
-        self.RunID = RunID  
-        self.TotalPass = TotalPass
-        self.TotalFail = TotalFail
-        self.SecondaryPass = SecondaryPass
-        self.SecondaryFail = SecondaryFail
-        self.SupplementaryPass = SupplementaryPass
-        self.SupplementaryFail = SupplementaryFail
-        self.DuplicatePass = DuplicatePass
-        self.DuplicateFail = DuplicateFail
-        self.MappedPass = MappedPass
-        self.MappedFail = MappedFail
-        self.MappedPercentage = MappedPercentage
-        self.PairedSeqPass = PairedSeqPass
-        self.PairedSeqFail = PairedSeqFail
-        self.Read1Pass = Read1Pass
-        self.Read1Fail = Read1Fail
-        self.Read2Pass = Read2Pass
-        self.Read2Fail = Read2Fail
-        self.PoperPairPass = PoperPairPass
-        self.ProperPairFail = ProperPairFail
-        self.SingletonsPass = SingletonsPass
-        self.SingletonsFail = SingletonsFail
-        self.SingletonsPercentage = SingletonsPercentage
-        self.MateOnDiffChromosomeLowPass = MateOnDiffChromosomeLowPass
-        self.MateOnDiffChromosomeLowFail = MateOnDiffChromosomeLowFail
-        self.MateOnDiffChromosomeHighPass = MateOnDiffChromosomeHighPass
-        self.MateOnDiffChromosomeHighFail = MateOnDiffChromosomeHighFail
+        self.SampleID = str(SampleID)  
+        self.RunID = str(RunID)  
+        self.TotalPass = str(TotalPass)
+        self.TotalFail = str(TotalFail)
+        self.SecondaryPass = str(SecondaryPass)
+        self.SecondaryFail = str(SecondaryFail)
+        self.SupplementaryPass = str(SupplementaryPass)
+        self.SupplementaryFail = str(SupplementaryFail)
+        self.DuplicatePass = str(DuplicatePass)
+        self.DuplicateFail = str(DuplicateFail)
+        self.MappedPass = str(MappedPass)
+        self.MappedFail = str(MappedFail)
+        self.MappedPercentage = str(MappedPercentage)
+        self.PairedSeqPass = str(PairedSeqPass)
+        self.PairedSeqFail = str(PairedSeqFail)
+        self.Read1Pass = str(Read1Pass)
+        self.Read1Fail = str(Read1Fail)
+        self.Read2Pass = str(Read2Pass)
+        self.Read2Fail = str(Read2Fail)
+        self.PoperPairPass = str(PoperPairPass)
+        self.ProperPairFail = str(ProperPairFail)
+        self.SingletonsPass = str(SingletonsPass)
+        self.SingletonsFail = str(SingletonsFail)
+        self.SingletonsPercentage = str(SingletonsPercentage)
+        self.MateOnDiffChromosomeLowPass = str(MateOnDiffChromosomeLowPass)
+        self.MateOnDiffChromosomeLowFail = str(MateOnDiffChromosomeLowFail)
+        self.MateOnDiffChromosomeHighPass = str(MateOnDiffChromosomeHighPass)
+        self.MateOnDiffChromosomeHighFail = str(MateOnDiffChromosomeHighFail)
 
     def toDatabaseEntry(self):
         return (
