@@ -16,25 +16,25 @@ class databaseConnectorInterface(object):
     def addCapturingKit(self, id, startDate = None, endDate = None):
         raise NotImplementedError
 
-    def addQualityDistribution(self, QualityDistribution):
+    def addAlignmentSummaryEntry(self, AlignmentSummaryMetrics):
         raise NotImplementedError
 
-    def addQualityByCycle(self, QualityByCycleObject): # type: (databaseConnectorInterface, QualityPerCycle) -> int
-        raise NotImplementedError
-
-    def addInsertSizeEntry(self, Entry):
-        raise NotImplementedError
-
-    def addAlignmentSummaryEntry(self, Entry):
+    def addFlagstatEntry(self, FlagstatMetric):
         raise NotImplementedError
 
     def addGCbiasEntry(self, gcBias):
         raise NotImplementedError
 
-    def addHsMetric(self, Entry):
+    def addHsMetric(self, HsMetric):
         raise NotImplementedError
 
-    def addFlagstatEntry(self, Entry):
+    def addInsertSizeEntry(self, InsertSizeMetric):
+        raise NotImplementedError
+
+    def addQualityDistribution(self, QualityDistribution):
+        raise NotImplementedError
+
+    def addQualityByCycle(self, QualityByCycleObject): # type: (databaseConnectorInterface, QualityPerCycle) -> int
         raise NotImplementedError
 
     def exit(self):
