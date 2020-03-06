@@ -1,3 +1,5 @@
+#! /usr/bin/env python2.7
+
 class Files(object):
     u"""
     Class that contains input and output file locations
@@ -23,4 +25,3 @@ class Files(object):
         :rtype: str
         """
         return self.output
-

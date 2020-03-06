@@ -13,3 +13,8 @@ venv/
 insertsizes.csv
 wiki/
 docs/
+*.pyc
+*.csv
+gatherMetricsConfig.sh
+src/scripts/python/build/
+*.db

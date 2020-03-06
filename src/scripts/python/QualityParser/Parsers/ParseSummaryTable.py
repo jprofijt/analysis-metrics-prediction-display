@@ -1,4 +1,4 @@
-from typing import List, AnyStr
+
 import csv
 import sys
 
@@ -11,23 +11,23 @@ class IncompatibleRowException(Exception):
 
 class SummaryTable:
     """Class that represents a summary table"""
-    def __init__(self, headerRow: List):
+    def __init__(self, headerRow):
         self.headerLength = len(headerRow)
         self.matrix = [headerRow]
 
     def getHeader(self):
         return ", ".join(self.matrix[0])
 
-    def addRow(self, row: List):
+    def addRow(self, row):
         if len(row) != self.headerLength:
             raise \
                 IncompatibleRowException(
-                    f'Length of row not { self.headerLength }'
+                    "Length of row not {0}".format(self.headerLength)
                     )
         else:
             self.matrix.append(row)
 
-    def toCSV(self, output: AnyStr):
+    def toCSV(self, output):
         with open(output, 'w', newline='') as file:
             csv.writer(file).writerows(self.matrix)
 
@@ -49,7 +49,7 @@ def main():
 
             elif len(row) == 1:
                 try:
-                    currentTable.toCSV(f'{currentTableID}.csv')
+                    currentTable.toCSV("{0}.csv".format(currentTableID))
                 except NameError:
                     pass
                 currentTableID = joint_row
