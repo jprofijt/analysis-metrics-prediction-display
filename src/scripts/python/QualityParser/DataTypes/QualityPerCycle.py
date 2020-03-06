@@ -1,8 +1,6 @@
-import itertools
-
 #! /usr/bin/env python2.7
-# pylint: disable=relative-beyond-top-level
 
+import itertools
 from .DatabaseType import DatabaseType
 
 class QualityPerCycle(DatabaseType):

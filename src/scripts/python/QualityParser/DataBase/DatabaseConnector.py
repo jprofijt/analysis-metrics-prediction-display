@@ -4,7 +4,7 @@ from ..DataTypes.QualityPerCycle import QualityPerCycle
 from ..DataTypes.gcBias import gcBias
 
 class databaseConnectorInterface(object):
-    def addSample(self, id, sequencer, run, flowcell, startDate, project, capturingKit):
+    def addSample(self, sample):
         raise NotImplementedError
 
     def addProject(self, id):

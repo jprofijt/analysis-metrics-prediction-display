@@ -5,7 +5,8 @@ from __future__ import with_statement
 from __future__ import absolute_import
 import csv, os, argparse, sys, shutil
 from io import open
-from .DataTypes.Files import Files
+from datetime import datetime
+from ..DataTypes import Files, Sample
 
 class FilesAndFailDir(Files):
     def __init__(self, input, output, fail):
@@ -14,6 +15,9 @@ class FilesAndFailDir(Files):
     
     def getFailLocation(self):
         return self.fail
+
+class NoStartDateException(Exception):
+    pass
     
     
 
@@ -58,7 +62,7 @@ def createFile(file, header = ['externalSampleID', 'Gender', 'sequencingStartDat
             writer = csv.writer(newCsv, delimiter=',', quotechar='#', quoting=csv.QUOTE_MINIMAL)
             writer.writerow(header)
     
-def parseSampleSheet(infile, outfile, columns = ['externalSampleID', 'Gender', 'sequencingStartDate', 'sequencer', 'prepKit', 'capturingKit', 'project']):
+def parseSampleSheet(infile):
     u"""
     moves wanted columns from samplesheet to output csv
 
@@ -68,9 +72,25 @@ def parseSampleSheet(infile, outfile, columns = ['externalSampleID', 'Gender', '
     :rtype: void
     """
     with open(infile, mode=u'r', errors='replace') as sampleSheet:
-            reader = csv.DictReader(sampleSheet, delimiter=",")
-            for row in reader:
-                appendToFile([getItem(row, column) for column in columns], outfile)
+        reader = csv.DictReader(sampleSheet, delimiter=",")
+        outList = []
+        for row in reader:
+            startDate = getItem(row, "sequencingStartDate")
+            try:
+                startDateAsDate = datetime.strptime(startDate, '%y%m%d').date()
+            except ValueError:
+                raise NoStartDateException()
+
+
+            sample = Sample(getItem(row, "externalSampleID"), getItem(row, "sequencer"), getItem(row, "run"), getItem(row, "flowcell"), startDateAsDate, getItem(row, "project"), getItem(row, "capturingKit"))
+            outList.append(sample)
+    
+    return outList
+            
+
+def writeDataToCsv(rows, outputfile):
+    for sample in rows:
+        appendToFile(sample.toList(), outputfile)
 
 
 def parseArguments():
@@ -96,7 +116,7 @@ def copyToFailed(input, storageDir):
     shutil.copy(input, storageDir)
 
 
-def main():
+def IndexSamples():
     u"""
     Main function, calls argparser, then checks output file by calling createFile, and finally proccesses Sample sheet
 
@@ -107,13 +127,14 @@ def main():
 
     createFile(fileContainer.getOutput())
     try:
-        parseSampleSheet(fileContainer.getInput(), fileContainer.getOutput())
-    except UnicodeEncodeError:
+        samples = parseSampleSheet(fileContainer.getInput())
+        writeDataToCsv(samples, fileContainer.getOutput())
+    except (UnicodeEncodeError, NoStartDateException):
         copyToFailed(fileContainer.getInput(), fileContainer.getFailLocation())
 
     return 0
 
 if __name__ == u"__main__":
-    sys.exit(main())
+    sys.exit(IndexSamples())
     
 

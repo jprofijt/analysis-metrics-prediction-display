@@ -1,5 +1,4 @@
 #! /usr/bin/env python2.7
-# pylint: disable=relative-beyond-top-level
 
 from .DatabaseType import DatabaseType
 

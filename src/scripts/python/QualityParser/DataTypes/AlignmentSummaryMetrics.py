@@ -1,6 +1,7 @@
 #! /usr/bin/env python2.7
-# pylint: disable=relative-beyond-top-level
 
+
+from __future__ import absolute_import
 from .DatabaseType import DatabaseType
 
 class AlignmentSummaryMetrics(DatabaseType):
