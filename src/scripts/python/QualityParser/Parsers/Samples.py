@@ -5,7 +5,7 @@ from __future__ import with_statement
 from __future__ import absolute_import
 import csv, os, argparse, sys, shutil
 from io import open
-from datetime import datetime
+import datetime
 from ..DataTypes import Files, Sample
 
 class FilesAndFailDir(Files):
@@ -77,7 +77,7 @@ def parseSampleSheet(infile):
         for row in reader:
             startDate = getItem(row, "sequencingStartDate")
             try:
-                startDateAsDate = datetime.strptime(startDate, '%y%m%d').date()
+                startDateAsDate = datetime.datetime.strptime(startDate.strip(), "%y%m%d").date()
             except ValueError:
                 raise NoStartDateException()
 

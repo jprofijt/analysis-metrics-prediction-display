@@ -11,12 +11,13 @@ def IndexSamplesToDB():
     try:
         samples = parseSampleSheet(args.getInput())
         for sample in samples:
+            print(sample.toList())
             dbc.addSample(sample)
-    except Exception:
+    except Exception, e:
+        print (str(e))
         copyToFailed(args.getInput(), args.getFailLocation())
     finally:
         dbc.exit()
-    
     return 0
 
 if __name__ == "__main__":

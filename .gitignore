@@ -16,3 +16,5 @@ docs/
 *.pyc
 *.csv
 gatherMetricsConfig.sh
+src/scripts/python/build/
+*.db

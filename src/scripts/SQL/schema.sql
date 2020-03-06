@@ -31,7 +31,7 @@ CREATE TABLE Samples (
     ID TEXT NOT NULL UNIQUE,
     Sequencer TEXT NOT NULL,
     run INT NOT NULL,
-    flowcell INT NOT NULL,
+    flowcell TEXT NOT NULL,
     startDate DATE NOT NULL,
     project TEXT NOT NULL,
     capturingKit TEXT NOT NULL,

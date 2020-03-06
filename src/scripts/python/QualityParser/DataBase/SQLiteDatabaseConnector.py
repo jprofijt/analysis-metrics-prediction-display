@@ -31,13 +31,16 @@ class sqlite3Database(databaseConnectorInterface):
         if len(sequencerQuery) == 0:
             self.addSequencer(sample.Sequencer)
         
-        self.cursor.execute("SELECT ID FROM CapturingKits WHERE ID = ?", (sample.CapturingKit),)
+        self.cursor.execute("SELECT ID FROM CapturingKits WHERE ID = ?", (sample.CapturingKit,))
         capturingKits = self.cursor.fetchall()
 
         if len(capturingKits) == 0:
             self.addCapturingKit(sample.CapturingKit)
         
-        self.addEntry('Samples', sample.toDatabaseEntry())
+        try:
+            self.addEntry('Samples', sample.toDatabaseEntry())
+        except sqlite3.IntegrityError:
+            pass
         return 0
 
     def addProject(self, project):
