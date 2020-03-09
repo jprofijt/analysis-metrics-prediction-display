@@ -5,21 +5,27 @@ import sys
 from .Samples import parseArguments, parseSampleSheet, copyToFailed
 from ..DataBase.SQLiteDatabaseConnector import sqlite3Database as DataBase
 
-def IndexSamplesToDB():
-    args = parseArguments()
-    dbc = DataBase(args.getOutput())
+def IndexSamplesToDB(sampleSheet, database, failDirectory):
     try:
-        samples = parseSampleSheet(args.getInput())
+        samples = parseSampleSheet(sampleSheet)
         for sample in samples:
             print(sample.toList())
-            dbc.addSample(sample)
-    except Exception, e:
-        print (str(e))
-        copyToFailed(args.getInput(), args.getFailLocation())
-    finally:
-        dbc.exit()
+            database.addSample(sample)
+    except Exception:
+        copyToFailed(sampleSheet, failDirectory)
     return 0
 
-if __name__ == "__main__":
-    sys.exit(IndexSamplesToDB())
+
+def main():
+    args = parseArguments()
+    dbc = DataBase(args.getOutput())
+    IndexSamplesToDB(args.getInput(), dbc, args.getFailLocation())
+    dbc.exit()
+    return 0
+
+if __name__ == '__main__':
+    main()
+    
+
+
 
