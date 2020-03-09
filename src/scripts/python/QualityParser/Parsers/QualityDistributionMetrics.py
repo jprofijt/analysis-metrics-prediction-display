@@ -5,8 +5,9 @@
 from __future__ import with_statement
 from __future__ import absolute_import
 import csv, os, argparse, sys, shutil
-from .DataTypes.Files import Files
-from .DataTypes.QualityDistribution import QualityDistribution
+from ..DataTypes.Files import Files
+from ..DataTypes.QualityDistribution import QualityDistribution
+from .parserTools import decomment
 from io import open
 
 class FileArguments(Files):
@@ -33,10 +34,6 @@ def parseArguments():
     files = FileArguments(args.input, args.output, args.sampleid, args.runid)
     return files
 
-def decomment(csvfile):
-    for row in csvfile:
-        raw = row.split(u'#')[0].strip()
-        if raw: yield raw
 
 def parseQDM(qd, input):
     with open(input, u'r') as qdm:
