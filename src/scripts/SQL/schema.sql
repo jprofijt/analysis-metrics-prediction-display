@@ -104,7 +104,7 @@ CREATE TABLE AlignmentSummaryMetrics (
     StrandBalance FLOAT NOT NULL,
     ChimerasPercentage FLOAT NOT NULL,
     AdapterPercentage FLOAT NOT NULL,
-    PRIMARY KEY (SampleID, RunID),
+    PRIMARY KEY (SampleID, RunID, Category),
     FOREIGN KEY (SampleID) REFERENCES Samples(ID)
 );
 
@@ -120,7 +120,7 @@ CREATE TABLE GCBiasMetrics (
     MeanBaseQuality INT NOT NULL,
     NormalizedCoverage FLOAT NOT NULL,
     ErrorBar FLOAT NOT NULL,
-    PRIMARY KEY (SampleID, RunID),
+    PRIMARY KEY (SampleID, RunID, GC),
     FOREIGN KEY (SampleID) REFERENCES Samples(ID)
 );
 
@@ -202,6 +202,9 @@ CREATE TABLE FlagstatMetrics (
     Read2Fail INT NOT NULL,
     PoperPairPass INT NOT NULL,
     ProperPairFail INT NOT NULL,
+    ProperPairPCT FLOAT NOT NULL,
+    SelfAndMatePass INT NOT NULL,
+    SelfAndMateFail INT NOT NULL,
     SingletonsPass INT NOT NULL,
     SingletonsFail INT NOT NULL,
     SingletonsPercentage FLOAT NOT NULL,

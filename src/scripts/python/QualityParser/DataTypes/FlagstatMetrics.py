@@ -3,7 +3,7 @@
 from .DatabaseType import DatabaseType
 
 class FlagstatMetric(DatabaseType):
-    def __init__(self, SampleID, RunID,TotalPass,TotalFail,SecondaryPass,SecondaryFail,SupplementaryPass,SupplementaryFail,DuplicatePass,DuplicateFail,MappedPass,MappedFail,MappedPercentage ,PairedSeqPass,PairedSeqFail,Read1Pass,Read1Fail,Read2Pass,Read2Fail,PoperPairPass,ProperPairFail,SingletonsPass,SingletonsFail,SingletonsPercentage ,MateOnDiffChromosomeLowPass,MateOnDiffChromosomeLowFail,MateOnDiffChromosomeHighPass,MateOnDiffChromosomeHighFail):
+    def __init__(self, SampleID, RunID,TotalPass,TotalFail,SecondaryPass,SecondaryFail,SupplementaryPass,SupplementaryFail,DuplicatePass,DuplicateFail,MappedPass,MappedFail,MappedPercentage ,PairedSeqPass,PairedSeqFail,Read1Pass,Read1Fail,Read2Pass,Read2Fail,PoperPairPass,ProperPairFail, ProperPairPCT, SelfAndMatePass, SelfAndMateFail,SingletonsPass,SingletonsFail,SingletonsPercentage ,MateOnDiffChromosomeLowPass,MateOnDiffChromosomeLowFail,MateOnDiffChromosomeHighPass,MateOnDiffChromosomeHighFail):
         self.SampleID = str(SampleID)  
         self.RunID = str(RunID)  
         self.TotalPass = str(TotalPass)
@@ -25,6 +25,9 @@ class FlagstatMetric(DatabaseType):
         self.Read2Fail = str(Read2Fail)
         self.PoperPairPass = str(PoperPairPass)
         self.ProperPairFail = str(ProperPairFail)
+        self.ProperPairPCT = str(ProperPairPCT)
+        self.SelfAndMatePass = str(SelfAndMatePass)
+        self.SelfAndMateFail = str(SelfAndMateFail)
         self.SingletonsPass = str(SingletonsPass)
         self.SingletonsFail = str(SingletonsFail)
         self.SingletonsPercentage = str(SingletonsPercentage)
@@ -56,6 +59,9 @@ class FlagstatMetric(DatabaseType):
             self.Read2Fail,
             self.PoperPairPass,
             self.ProperPairFail,
+            self.ProperPairPCT,
+            self.SelfAndMatePass,
+            self.SelfAndMateFail,
             self.SingletonsPass,
             self.SingletonsFail,
             self.SingletonsPercentage,

@@ -9,6 +9,8 @@ from ..DataTypes.Files import Files
 from ..DataTypes.QualityDistribution import QualityDistribution
 from .parserTools import decomment
 from io import open
+from ..DataBase.SQLiteDatabaseConnector import sqlite3Database as DataBase
+
 
 class FileArguments(Files):
     def __init__(self, input, output, sampleID, runID):
@@ -51,11 +53,15 @@ def writeToCsv(qd, output):
         row = [qd.getRunID(), qd.getSampleID()] + qd.toList()
         csv.writer(csvFile).writerow(row)
 
+def writeToDB(qd, database):
+    database.addQualityDistribution(qd)
 def main():
     args = parseArguments()
     qd = QualityDistribution(args.getRunID(), args.getSampleID())
     qd = parseQDM(qd, args.getInput())
-    writeToCsv(qd, args.output)
+    dbc = DataBase(args.getOutput())
+    writeToDB(qd, dbc)
+    dbc.exit()
     return 0
 
 if __name__ == "__main__":

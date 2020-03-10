@@ -7,6 +7,7 @@ class gcBias(DatabaseType):
     def __init__(self, sampleID, runID, AL, ReadsUsed, GC, Windows, ReadStart, MeanBaseQuality, NormalizedCoverage, ErrorBar):
         self.sampleID = str(sampleID)
         self.runID = str(runID)
+        self.AL = str(AL)
         self.ReadsUsed = str(ReadsUsed)
         self.GC = str(GC)
         self.Windows = str(Windows)
@@ -19,6 +20,7 @@ class gcBias(DatabaseType):
         return (
             self.sampleID,
             self.runID,
+            self.AL,
             self.ReadsUsed,
             self.GC,
             self.Windows,

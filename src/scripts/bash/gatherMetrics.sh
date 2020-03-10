@@ -345,55 +345,15 @@ finishOff()
 }
 
 
-setupFiles # Generate empty files with headers
+
 
 # shellcheck disable=SC2094
 while IFS= read -r -d '' project
   do
-      cd "$project" || continue
-      PROJECTID=$(basename "$PWD")
+      PROJECTID=$(basename "$project")
       progress=$((counter*100/total))
       echo -ne " ${progress}% of directories searched (${counter}/${total}) Project: ${PROJECTID}\r" # Progress indicator
       (( counter++ )) # Progress counter
-      runCount=$(ls -l | grep -c ^d)
-      runCounter=0
-      # for run in project
-      while IFS= read -r -d '' run
-        do
-          (( runCounter++ ))
-          cd "$run" || continue
-          if [[ -f "results/${PROJECTID}.csv" ]]; then
-            currentRunID=$(basename "$PWD")
-            if [[ "$INDEXSAMPLES" -eq "1" ]]; then
-              storeSampleSheet
-            fi
-            if [[ -d "results/qc/statistics/" ]]; then
-              if [[ "$HSMETRICS" -eq "1" ]]; then
-                hsMetrics
-              fi
-              if [[ "$ISMETRICS" -eq "1" ]]; then
-                isMetrics
-              fi
-              if [[ "$ASMETRICS" -eq "1" ]]; then
-                asMetrics
-              fi
-              if [[ "$FLMETRICS" -eq "1" ]]; then
-                flMetrics
-              fi
-              if [[ "$GCBMETRICS" -eq "1" ]]; then
-                gcbMetrics
-              fi
-              if [[ "$QBCMETRICS" -eq "1" ]]; then
-                qbcMetrics
-              fi
-              if [[ "$QDMETRICS" -eq "1" ]]; then
-                qdMetrics
-              fi
-            fi
-          fi
-          cd ..
-        done < <(find . -maxdepth 1 -mindepth 1 -type d -print0)
-      cd ..
+      python "${HERE}/src/scripts/python/ExecutableScripts/indexProject.py" -p "$project" -d "$output" -i "$PROJECTID"
   done < <(find . -maxdepth 1 -mindepth 1 -type d -print0)
 
-finishOff

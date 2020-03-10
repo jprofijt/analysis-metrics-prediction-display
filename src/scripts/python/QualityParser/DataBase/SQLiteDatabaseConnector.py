@@ -54,7 +54,15 @@ class sqlite3Database(databaseConnectorInterface):
     def addCapturingKit(self, id, startDate=u'NULL', endDate=u'NULL'):
         self.addEntry("CapturingKits", (id,str(startDate), str(endDate)))
         return 0
+
+    def addHsMetric(self, HsMetric):
+        self.addEntry('hsMetrics', HsMetric.toDatabaseEntry())
+        return 0
     
+    def addInsertSizeEntry(self, InsertSizeMetric):
+        self.addEntry('InsertSizes', InsertSizeMetric.toDatabaseEntry())
+        return 0
+
     def addAlignmentSummaryEntry(self, AlignmentSummaryMetrics):
         self.addEntry('AlignmentSummaryMetrics', AlignmentSummaryMetrics.toDatabaseEntry())
         return 0

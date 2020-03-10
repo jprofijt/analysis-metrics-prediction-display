@@ -9,7 +9,6 @@ def IndexSamplesToDB(sampleSheet, database, failDirectory):
     try:
         samples = parseSampleSheet(sampleSheet)
         for sample in samples:
-            print(sample.toList())
             database.addSample(sample)
     except Exception:
         copyToFailed(sampleSheet, failDirectory)
