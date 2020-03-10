@@ -56,20 +56,6 @@ if [[ ! -d "$directory" ]]; then
 fi
 
 # if output already exists
-if [[ $force == 0 ]] &&  [[ -f $output ]]; then
-        echo "$output already exists, overwrite? [y/n]:"
-        read -r answer
-        if [[ $answer == "n" ]]; then
-                echo "exiting..."
-                exit 1
-        elif [[ $answer == "y" ]]; then
-                echo "overwriting..."
-                rm "$output"
-        else
-                echo "please give y or n, exiting..."
-                exit 1
-        fi
-fi
 
 checkconfig() 
 {
