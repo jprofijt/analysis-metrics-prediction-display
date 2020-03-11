@@ -219,7 +219,10 @@ CREATE TABLE FlagstatMetrics (
 
 CREATE TABLE LOG (
     LogDate DATETIME NOT NULL,
-    Message TEXT NOT NULL
+    SampleID TEXT NOT NULL,
+    runID TEXT NOT NULL,
+    Message TEXT NOT NULL,
+    FOREIGN KEY (SampleID) REFERENCES Samples(ID)
 );
 
 

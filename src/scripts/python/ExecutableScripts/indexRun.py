@@ -1,5 +1,6 @@
 #! /usr/bin/env python2.7
 import os, argparse, sys
+from datetime import datetime
 import QualityParser as QP
 
 def indexRun(runDir, runID, database):
@@ -29,7 +30,7 @@ def indexRun(runDir, runID, database):
             addExceptionLog(database, filetype, sampleID, runID, str(e))
 
 def addExceptionLog(database, type, sample, run, exception):
-    database.addEntry('LOG', "Failed parsing {0} for {1} in run {2}. Error: {3}".format(type, sample, run, exception))
+    database.addEntry('LOG', (datetime.now(), sample, run, "Failed Parsing {0}. Error:{1}".format(type, exception)))
 
 def createQuickParser(args, description):
     parser = argparse.ArgumentParser(description=description)
