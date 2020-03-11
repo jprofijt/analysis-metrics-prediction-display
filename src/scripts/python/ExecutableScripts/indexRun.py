@@ -26,7 +26,7 @@ def indexRun(runDir, runID, database):
             else:
                 continue
         except Exception as e:
-            addExceptionLog(database, filetype, sampleID, runID, e)
+            addExceptionLog(database, filetype, sampleID, runID, str(e))
 
 def addExceptionLog(database, type, sample, run, exception):
     database.addEntry('LOG', "Failed parsing {0} for {1} in run {2}. Error: {3}".format(type, sample, run, exception))
