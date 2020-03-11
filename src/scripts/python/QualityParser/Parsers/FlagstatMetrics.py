@@ -27,9 +27,6 @@ def parseFlagstatFile(file, sampleID, RunID):
         for row in flagstatFile:
             output = parseFlagstatRow(row, output)
     if len(output) != 29:
-        print file
-        print output
-        print len(output)
         raise IncompatibleFlagstatFile()
     # pylint: disable=no-value-for-parameter
     return FlagstatMetric(sampleID, RunID, *output)

@@ -8,25 +8,29 @@ def indexRun(runDir, runID, database):
         splitFilename = filename.split(".")
         filetype = splitFilename[-1]
         sampleID = splitFilename[0]
-        if filetype == "alignment_summary_metrics":
-            QP.insertASMtoDB(QP.parseAlignmentSummaryMetirics(fullpath, sampleID, runID), database)
-        elif filetype == "flagstat":
-            QP.insertFlagstatToDB(QP.parseFlagstatFile(fullpath, sampleID, runID), database)
-        elif filetype == "gc_bias_metrics":
-            QP.insertGcToDB(QP.parseGcBiasFile(fullpath, sampleID, runID), database)
-        elif filetype == "insert_size_metrics":
-            QP.insertInsertSizeToDB(QP.parseInserSizeMetricsFile(fullpath, sampleID, runID), database)
-        elif filetype == "hs_metrics":
-            QP.insertHsToDB(QP.parseHsMetricsFile(fullpath, sampleID, runID), database)
-        elif filetype == "quality_by_cycle_metrics":
-            QP.insertQBCtoDB(QP.QBCparser(fullpath, sampleID, runID), database)
-        elif filetype == "quality_distribution":
-            QP.insertQDMtoDB(QP.parseQDM(fullpath, sampleID, runID), database)
-        else:
-            continue
-    
+        try:
+            if filetype == "alignment_summary_metrics":
+                QP.insertASMtoDB(QP.parseAlignmentSummaryMetirics(fullpath, sampleID, runID), database)
+            elif filetype == "flagstat":
+                QP.insertFlagstatToDB(QP.parseFlagstatFile(fullpath, sampleID, runID), database)
+            elif filetype == "gc_bias_metrics":
+                QP.insertGcToDB(QP.parseGcBiasFile(fullpath, sampleID, runID), database)
+            elif filetype == "insert_size_metrics":
+                QP.insertInsertSizeToDB(QP.parseInserSizeMetricsFile(fullpath, sampleID, runID), database)
+            elif filetype == "hs_metrics":
+                QP.insertHsToDB(QP.parseHsMetricsFile(fullpath, sampleID, runID), database)
+            elif filetype == "quality_by_cycle_metrics":
+                QP.insertQBCtoDB(QP.QBCparser(fullpath, sampleID, runID), database)
+            elif filetype == "quality_distribution":
+                QP.insertQDMtoDB(QP.parseQDM(fullpath, sampleID, runID), database)
+            else:
+                continue
+        except Exception as e:
+            addExceptionLog(database, filetype, sampleID, runID, e)
 
-    
+def addExceptionLog(database, type, sample, run, exception):
+    database.addEntry('LOG', "Failed parsing {0} for {1} in run {2}. Error: {3}".format(type, sample, run, exception))
+
 def createQuickParser(args, description):
     parser = argparse.ArgumentParser(description=description)
     for item in args:

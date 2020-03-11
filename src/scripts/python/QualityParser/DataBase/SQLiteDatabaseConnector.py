@@ -4,6 +4,7 @@ from __future__ import with_statement
 import sqlite3, csv, sys
 from .DatabaseConnector import databaseConnectorInterface
 from ..DataTypes.DatabaseType import DatabaseType
+from datetime import datetime
 
 class sqlite3Database(databaseConnectorInterface):
     def __init__(self, databasefile):

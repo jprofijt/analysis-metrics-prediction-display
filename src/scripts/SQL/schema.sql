@@ -9,6 +9,7 @@ DROP TABLE IF EXISTS Samples;
 DROP TABLE IF EXISTS CapturingKits;
 DROP TABLE IF EXISTS Sequencers;
 DROP TABLE IF EXISTS Projects;
+DROP TABLE IF EXISTS LOG;
 
 CREATE TABLE Projects (
     ID TEXT NOT NULL,
@@ -214,6 +215,11 @@ CREATE TABLE FlagstatMetrics (
     MateOnDiffChromosomeHighFail INT NOT NULL,
     PRIMARY KEY (SampleID, RunID),
     FOREIGN KEY (SampleID) REFERENCES Samples(ID)
+);
+
+CREATE TABLE LOG (
+    LogDate DATETIME NOT NULL,
+    Message TEXT NOT NULL
 );
 
 
