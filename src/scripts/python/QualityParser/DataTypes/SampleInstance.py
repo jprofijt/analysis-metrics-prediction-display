@@ -1,7 +1,6 @@
 #! /usr/bin/env python2.7
 
 from .DatabaseType import DatabaseType
-from datetime import datetime
 
 class SampleObject(DatabaseType):
     def __init__(self, SampleID, sequencer, run, flowcell, startDate, project, capturingKit):

@@ -19,3 +19,4 @@ gatherMetricsConfig.sh
 src/scripts/python/build/
 *.db
 *venv*
+.vscode
