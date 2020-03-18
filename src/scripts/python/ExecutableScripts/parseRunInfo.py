@@ -1,7 +1,8 @@
 #! /usr/bin/env python2
 import xml.etree.ElementTree as ET
+import subprocess
 from QualityParser.DataTypes import SequencingRun
-from QualityParser.Parsers import dateParser
+from QualityParser.Parsers import dateParserz
 
 def parseRun(xml):
     tree = ET.parse(xml)
@@ -17,5 +18,6 @@ def parseRun(xml):
     
     return SequencingRun(run.attrib["Id"], run.attrib["Number"], FlowCell.text, Sequencer.text, dateParser(Date.text.strip()))
     
+def dumpInterop(interop, application):
+    dumptext = subprocess.check_output([application, interop])
 
-print parseRun("data/interop/171130_NB501093_0223_AHVHNNAFXX/Info/RunInfo.xml").toDatabaseEntry()
