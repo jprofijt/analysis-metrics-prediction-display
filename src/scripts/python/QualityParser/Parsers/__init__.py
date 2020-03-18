@@ -16,6 +16,7 @@ from .QualityByCycleParser import parseQBCFile as QBCparser
 from .QualityByCycleParser import insertToDB as insertQBCtoDB
 from .QualityDistributionMetrics import parseQDM
 from .QualityDistributionMetrics import writeToDB as insertQDMtoDB
+from .parserTools import dateParser
 
 
 

@@ -2,6 +2,7 @@
 
 import argparse
 from ..DataTypes.Files import Files
+import datetime
 def decomment(csvfile):
     for row in csvfile:
         raw = row.split(u'#')[0].strip()
@@ -30,4 +31,7 @@ def createQuickParser(args, description):
         parser.add_argument(u"-{0}".format(item[0]), u"--{0}".format(item), type=unicode, required=True)
     
     return parser
+
+def dateParser(dateString):
+    return datetime.datetime.strptime(dateString, "%y%m%d").date()
 

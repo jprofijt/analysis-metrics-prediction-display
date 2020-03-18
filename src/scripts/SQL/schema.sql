@@ -28,6 +28,16 @@ CREATE TABLE Capturingkits (
     PRIMARY KEY (ID)
 );
 
+CREATE TABLE RUNS (
+    RunID TEXT NOT NULL UNIQUE,
+    Number INT NOT NULL,
+    Flowcell TEXT NOT NULL,
+    Sequencer TEXT NOT NULL,
+    Date DATE NOT NULL,
+    PRIMARY KEY RunID,
+    FOREIGN KEY (Sequencer) REFERENCES Sequencers(ID)
+);
+
 CREATE TABLE Samples (
     ID TEXT NOT NULL UNIQUE,
     Sequencer TEXT NOT NULL,
@@ -39,7 +49,8 @@ CREATE TABLE Samples (
     PRIMARY KEY (ID),
     FOREIGN KEY (sequencer) REFERENCES Sequencers(ID),
     FOREIGN KEY (project) REFERENCES Projects(ID),
-    FOREIGN KEY (capturingKit) REFERENCES CapturingKits(ID)
+    FOREIGN KEY (capturingKit) REFERENCES CapturingKits(ID),
+    FOREIGN KEY (run) REFERENCES RUNS(Number)
 );
 
 CREATE TABLE QualityDistributions (

@@ -3,10 +3,11 @@
 from .DatabaseType import DatabaseType
 
 class SequencingRun(DatabaseType):
-    def __init__(self, runId, Number, Flowcell, Date):
+    def __init__(self, runId, Number, Flowcell, Sequencer, Date):
         self.runID = runId
         self.Number = Number
         self.Flowcell = Flowcell
+        self.Sequencer = Sequencer
         self.Date = Date
     
     def toDatabaseEntry(self):
@@ -14,6 +15,7 @@ class SequencingRun(DatabaseType):
             self.runID,
             self.Number,
             self.Flowcell,
+            self.Sequencer,
             self.Date
         )
         
