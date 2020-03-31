@@ -2,7 +2,7 @@
 import xml.etree.ElementTree as ET
 import subprocess
 from QualityParser.DataTypes import SequencingRun
-from QualityParser.Parsers import dateParserz
+from QualityParser.Parsers import dateParser
 
 def parseRun(xml):
     tree = ET.parse(xml)
@@ -18,6 +18,7 @@ def parseRun(xml):
     
     return SequencingRun(run.attrib["Id"], run.attrib["Number"], FlowCell.text, Sequencer.text, dateParser(Date.text.strip()))
     
-def dumpInterop(interop, application):
-    dumptext = subprocess.check_output([application, interop])
+def getInteropSummary(interop, summaryApplication):
+    summary = subprocess.check_output([summaryApplication, interop, '--level=0', '--csv=1'])
+    return summary.strip().split("\n")[2:4]
 

@@ -40,6 +40,9 @@ class databaseConnectorInterface(object):
     def addQualityByCycle(self, QualityByCycleObject): # type: (databaseConnectorInterface, QualityPerCycle) -> int
         raise NotImplementedError
 
+    def addRunSummary(self, Summary):
+        raise NotImplementedError
+
     def exit(self):
         pass
 

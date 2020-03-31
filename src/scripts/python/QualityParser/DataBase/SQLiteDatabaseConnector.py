@@ -83,7 +83,14 @@ class sqlite3Database(databaseConnectorInterface):
     def addQualityByCycle(self, QualityByCycle):
         self.addLargeEntry("QualityByCycle", QualityByCycle.toDatabaseEntry())
         return 0
-    
+
+    def addSequencingRun(self, run):
+        self.addEntry("RUNS", run.toDatabaseEntry())
+        return 0
+
+    def addRunSummary(self, ID, Summary):
+        uniqueID = self.getUniqueRunID(ID)
+        self.addEntry("RunSummary", Summary.toDatabaseEntry() + (uniqueID))
     
     def exit(self):
         self.connection.close()

@@ -34,7 +34,8 @@ CREATE TABLE RUNS (
     Flowcell TEXT NOT NULL,
     Sequencer TEXT NOT NULL,
     Date DATE NOT NULL,
-    PRIMARY KEY RunID,
+    UniqueID INT UNIQUE NOT NULL,
+    PRIMARY KEY (UniqueID),
     FOREIGN KEY (Sequencer) REFERENCES Sequencers(ID)
 );
 
@@ -226,6 +227,16 @@ CREATE TABLE FlagstatMetrics (
     MateOnDiffChromosomeHighFail INT NOT NULL,
     PRIMARY KEY (SampleID, RunID),
     FOREIGN KEY (SampleID) REFERENCES Samples(ID)
+);
+
+CREATE TABLE RunSummary (
+    Yield FLOAT NOT NULL,
+    ProjectedYield FLOAT NOT NULL,
+    Aligned FLOAT NOT NULL,
+    Intensity INT NOT NULL,
+    Q30 FLOAT NOT NULL,
+    RunID INT NOT NULL,
+    FOREIGN KEY (RunID) REFERENCES RUNS(UniqueID)
 );
 
 CREATE TABLE LOG (
