@@ -85,12 +85,14 @@ class sqlite3Database(databaseConnectorInterface):
         return 0
 
     def addSequencingRun(self, run):
-        self.addEntry("RUNS", run.toDatabaseEntry())
-        return 0
+        self.cursor.execute("INSERT INTO RUNS (RunID,Number,Flowcell,Sequencer,Date) VALUES (?,?,?,?,?)", run.toDatabaseEntry())
+        self.connection.commit()
+        self.cursor.execute("SELECT UniqueID from RUNS where RunID==? AND Number==? AND Flowcell==? AND Sequencer==? AND Date==? LIMIT 1;", run.toDatabaseEntry())
+        return self.cursor.fetchall()
 
     def addRunSummary(self, ID, Summary):
-        uniqueID = self.getUniqueRunID(ID)
-        self.addEntry("RunSummary", Summary.toDatabaseEntry() + (uniqueID))
+        
+        self.addEntry("RunSummary", Summary.toDatabaseEntry() + (ID))
     
     def exit(self):
         self.connection.close()

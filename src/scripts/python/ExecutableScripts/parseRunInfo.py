@@ -1,8 +1,14 @@
 #! /usr/bin/env python2
+from __future__ import absolute_import
+
 import xml.etree.ElementTree as ET
 import subprocess
-from QualityParser.DataTypes import SequencingRun
+
+from QualityParser.DataTypes import SequencingRun, Summary
+from QualityParser.DataBase import sqlite3Database
 from QualityParser.Parsers import dateParser
+from QualityParser.Parsers.parserTools import createQuickParser
+import sys
 
 def parseRun(xml):
     tree = ET.parse(xml)
@@ -20,5 +26,34 @@ def parseRun(xml):
     
 def getInteropSummary(interop, summaryApplication):
     summary = subprocess.check_output([summaryApplication, interop, '--level=0', '--csv=1'])
-    return summary.strip().split("\n")[2:4]
+    print summary
+    summaryList = summary.strip().split("\n")[3].split(",")[1:]
+    print summaryList
+    sumarryObj = Summary(
+        float(summaryList[0]),
+        float(summaryList[1]),
+        float(summaryList[2]),
+        summaryList[3],
+        int(summaryList[4]),
+        float(summaryList[5])
+    )
+    print sumarryObj.toDatabaseEntry()
+    return sumarryObj
 
+
+def insertToDB(runInfo, summary, database):
+    RunID = database.addSequencingRun(runInfo)[0]
+    print RunID
+    database.addRunSummary(RunID, summary)
+
+def main():
+    parser = createQuickParser(["runxml", "interop", "database", "executable"], "Parser for interop folders, inserts run summary to database")
+    args = parser.parse_args()
+    runInfo = parseRun(args.runxml)
+    summary = getInteropSummary(args.interop, args.executable)
+    database = sqlite3Database(args.database)
+    insertToDB(runInfo, summary, database)
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())

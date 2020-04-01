@@ -29,13 +29,12 @@ CREATE TABLE Capturingkits (
 );
 
 CREATE TABLE RUNS (
+    UniqueID INTEGER PRIMARY KEY AUTOINCREMENT,
     RunID TEXT NOT NULL UNIQUE,
     Number INT NOT NULL,
     Flowcell TEXT NOT NULL,
     Sequencer TEXT NOT NULL,
     Date DATE NOT NULL,
-    UniqueID INT UNIQUE NOT NULL,
-    PRIMARY KEY (UniqueID),
     FOREIGN KEY (Sequencer) REFERENCES Sequencers(ID)
 );
 
@@ -230,13 +229,14 @@ CREATE TABLE FlagstatMetrics (
 );
 
 CREATE TABLE RunSummary (
-    Yield FLOAT NOT NULL,
-    ProjectedYield FLOAT NOT NULL,
-    Aligned FLOAT NOT NULL,
-    Intensity INT NOT NULL,
-    Q30 FLOAT NOT NULL,
-    RunID INT NOT NULL,
-    FOREIGN KEY (RunID) REFERENCES RUNS(UniqueID)
+    Yield REAL NOT NULL,
+    ProjectedYield REAL NOT NULL,
+    Aligned REAL NOT NULL,
+    ErrorRate TEXT,
+    Intensity INTEGER NOT NULL,
+    Q30 REAL NOT NULL,
+    UniqueID INTEGER NOT NULL,
+    FOREIGN KEY (UniqueID) REFERENCES RUNS(UniqueID)
 );
 
 CREATE TABLE LOG (
