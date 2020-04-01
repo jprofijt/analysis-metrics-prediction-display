@@ -8,6 +8,10 @@ import subprocess
 import QualityParser as QP
 
 import argparse
+import datetime
+
+def dateParser(dateString):
+    return datetime.datetime.strptime(dateString, "%y%m%d").date()
 
 def parseRun(xml):
     tree = ET.parse(xml)
