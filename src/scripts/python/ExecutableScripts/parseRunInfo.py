@@ -26,9 +26,7 @@ def parseRun(xml):
     
 def getInteropSummary(interop, summaryApplication):
     summary = subprocess.check_output([summaryApplication, interop, '--level=0', '--csv=1'])
-    print summary
     summaryList = summary.strip().split("\n")[3].split(",")[1:]
-    print summaryList
     sumarryObj = Summary(
         float(summaryList[0]),
         float(summaryList[1]),
@@ -37,13 +35,11 @@ def getInteropSummary(interop, summaryApplication):
         int(summaryList[4]),
         float(summaryList[5])
     )
-    print sumarryObj.toDatabaseEntry()
     return sumarryObj
 
 
 def insertToDB(runInfo, summary, database):
     RunID = database.addSequencingRun(runInfo)[0]
-    print RunID
     database.addRunSummary(RunID, summary)
 
 def main():
