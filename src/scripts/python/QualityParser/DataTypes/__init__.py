@@ -12,3 +12,4 @@ from .SampleInstance import SampleObject as Sample
 from .QualityPerCycle import QualityPerCycle
 from .SequencingRun import SequencingRun
 from .Summary import Summary
+from .Lane import Lane

@@ -10,6 +10,9 @@ DROP TABLE IF EXISTS CapturingKits;
 DROP TABLE IF EXISTS Sequencers;
 DROP TABLE IF EXISTS Projects;
 DROP TABLE IF EXISTS LOG;
+DROP TABLE IF EXISTS Lanes;
+DROP TABLE IF EXISTS RunSummary;
+DROP TABLE IF EXISTS RUNS;
 
 CREATE TABLE Projects (
     ID TEXT NOT NULL,
@@ -30,12 +33,48 @@ CREATE TABLE Capturingkits (
 
 CREATE TABLE RUNS (
     UniqueID INTEGER PRIMARY KEY AUTOINCREMENT,
-    RunID TEXT NOT NULL UNIQUE,
+    RunID TEXT NOT NULL,
     Number INT NOT NULL,
     Flowcell TEXT NOT NULL,
     Sequencer TEXT NOT NULL,
     Date DATE NOT NULL,
     FOREIGN KEY (Sequencer) REFERENCES Sequencers(ID)
+);
+
+CREATE TABLE RunSummary (
+    ReadID TEXT NOT NULL,
+    Yield REAL NOT NULL,
+    ProjectedYield REAL NOT NULL,
+    Aligned REAL NOT NULL,
+    ErrorRate TEXT,
+    Intensity INTEGER NOT NULL,
+    Q30 REAL NOT NULL,
+    UniqueID INTEGER NOT NULL,
+    PRIMARY KEY (ReadID, UniqueID)
+    FOREIGN KEY (UniqueID) REFERENCES RUNS(UniqueID)
+);
+
+CREATE TABLE Lanes (
+    ReadID TEXT NOT NULL,
+    Lane INTEGER NOT NULL,
+    Tiles INTEGER,
+    DensityMIN REAL,
+    DensityMAX REAL,
+    ClusterMIN REAL,
+    ClusterMAX REAL,
+    LegacyPhasing REAL,
+    LegacyPrePhasing REAL,
+    PhasingSlope REAL,
+    PhasingOffset REAL,
+    PrePhasingSlope REAL,
+    PrePhasingOffset REAL,
+    Reads REAL,
+    ReadsPF REAL,
+    Q30 REAL,
+    IntensityMIN INTEGER,
+    IntensityMAX INTEGER,
+    UniqueID INTEGER NOT NULL,
+    FOREIGN KEY (UniqueID) REFERENCES RUNS(UniqueID)
 );
 
 CREATE TABLE Samples (
@@ -226,17 +265,6 @@ CREATE TABLE FlagstatMetrics (
     MateOnDiffChromosomeHighFail INT NOT NULL,
     PRIMARY KEY (SampleID, RunID),
     FOREIGN KEY (SampleID) REFERENCES Samples(ID)
-);
-
-CREATE TABLE RunSummary (
-    Yield REAL NOT NULL,
-    ProjectedYield REAL NOT NULL,
-    Aligned REAL NOT NULL,
-    ErrorRate TEXT,
-    Intensity INTEGER NOT NULL,
-    Q30 REAL NOT NULL,
-    UniqueID INTEGER NOT NULL,
-    FOREIGN KEY (UniqueID) REFERENCES RUNS(UniqueID)
 );
 
 CREATE TABLE LOG (

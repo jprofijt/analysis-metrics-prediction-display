@@ -4,7 +4,8 @@ from __future__ import absolute_import
 from .DatabaseType import DatabaseType
 
 class Summary(DatabaseType):
-    def __init__(self, Yield, Projected, Aligned, ErrorRate, Intencity, Q30):
+    def __init__(self, Read, Yield, Projected, Aligned, ErrorRate, Intencity, Q30):
+        self.Read = Read
         self.Yield = Yield
         self.Projected = Projected
         self.Aligned = Aligned
@@ -14,6 +15,7 @@ class Summary(DatabaseType):
         
     def toDatabaseEntry(self):
         return (
+            self.Read,
             self.Yield,
             self.Projected,
             self.Aligned,
