@@ -28,7 +28,6 @@ def parseRun(xml):
     
 def parseInteropSummary(interop, summaryApplication):
     summary = subprocess.check_output([summaryApplication, interop, '--level=3', '--csv=1']).split('\n')
-    print len(summary)
     counter = 0
     stored = []
     lanes = []
@@ -92,7 +91,6 @@ def insertToDB(runInfo, summarys, lanes, database):
     for summary in summarys:
         database.addRunSummary(RunID, summary)
     for lane in lanes:
-        print lane.toDatabaseEntry()
         database.addLane(RunID, lane)
     
 
