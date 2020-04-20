@@ -1,0 +1,1246 @@
+---
+title: "SQLiteDataExplore"
+author: "Jouke Profijt"
+date: "3/11/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = '../' )
+```
+
+```{r echo=FALSE}
+library(DBI)
+library(knitr)
+
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+t <- dbListTables(connection)
+kable(t, "pandoc", col.names = c("Table"), caption = "Data available in database")
+samples <- dbReadTable(connection, "Samples")
+Projects <- dbReadTable(connection, "Projects")
+LOG <- dbReadTable(connection, "LOG")
+capturingKits <- dbReadTable(connection, "CapturingKits")
+v <- c()
+for (cK in capturingKits$ID) {
+  res <- dbSendQuery(connection, paste0("SELECT count(*) from Samples where capturingKit='", cK, "';"))
+  v <- append(v, dbFetch(res))
+  dbClearResult(res)
+}
+capturingKits$numbers <- as.numeric(v)
+capturingKits <- capturingKits[order(-capturingKits$numbers), ]
+
+dbDisconnect(connection)
+```
+Available Metrics indexed into a sqlite database
+
+```{r echo=FALSE}
+
+```
+
+```{r echo=FALSE}
+library(ggplot2)
+commonPanels <- capturingKits[capturingKits$numbers > 100,]
+p <- ggplot(commonPanels, aes(x=ID, y=numbers, fill=ID)) + geom_bar(stat = "identity")
+
+p + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Number of entries for each panel type") + xlab("Panel") + ylab("Number of Entries")
+```
+Total Number of entries for each panel type.
+
+```{r echo=FALSE}
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+res <- dbSendQuery(connection, "SELECT InsertSizes.*, Samples.startDate, Samples.Sequencer, Samples.capturingKit FROM InsertSizes INNER JOIN Samples ON InsertSizes.SampleID=Samples.ID;")
+IS <- dbFetch(res)
+dbClearResult(res)
+
+IS$startDate <- as.Date(IS$startDate)
+
+res <- dbSendQuery(connection, "SELECT FlagstatMetrics.*, Samples.startDate FROM FlagstatMetrics INNER JOIN Samples ON FlagstatMetrics.SampleID=Samples.ID;")
+FlagStat <- dbFetch(res)
+dbClearResult(res)
+
+
+FlagStat$startDate <- as.Date(FlagStat$startDate)
+
+
+res <- dbSendQuery(connection, "SELECT AlignmentSummaryMetrics.*, Samples.startDate, Samples.Sequencer, Samples.capturingKit FROM AlignmentSummaryMetrics INNER JOIN Samples ON AlignmentSummaryMetrics.SampleID=Samples.ID WHERE AlignmentSummaryMetrics.Category='PAIR';")
+ASM <- dbFetch(res)
+dbClearResult(res)
+
+ASM$startDate <- as.Date(ASM$startDate)
+
+res <- dbSendQuery(connection, "SELECT GCBiasMetrics.*, Samples.startDate, Samples.Sequencer, Samples.capturingKit FROM GCBiasMetrics INNER JOIN Samples ON GCBiasMetrics.SampleID=Samples.ID;")
+GC <- dbFetch(res)
+dbClearResult(res)
+
+GC$startDate <- as.Date(GC$startDate)
+
+res <- dbSendQuery(connection, "SELECT hsMetrics.*, Samples.startDate, Samples.Sequencer, Samples.capturingKit FROM hsMetrics INNER JOIN Samples ON hsMetrics.SampleID=Samples.ID;")
+HS <- dbFetch(res)
+dbClearResult(res)
+
+HS$startDate <- as.Date(HS$startDate)
+
+FlagStat$startDate <- as.Date(FlagStat$startDate)
+dbDisconnect(connection)
+```
+# Insert Sizes
+
+[Insert sizes wiki link](https://github.com/jprofijt/analysis-metrics-prediction-display/wiki/Insert-size-metrics)
+
+## InsertSizes Exoom
+```{r echo=FALSE}
+
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res1 <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(InsertSizes.MedianSize) as avg_MedSize, avg(InsertSizes.StandardDeviation) as avg_SD, count(*) as number, Samples.capturingKit as cK
+FROM InsertSizes INNER JOIN Samples ON InsertSizes.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01' AND Samples.capturingKit LIKE '%exoom%'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+IS <- dbFetch(res1)
+dbClearResult(res1)
+IS$dt <- as.Date(IS$dt)
+
+ggplot(IS, aes(x=dt, y=avg_MedSize, colour=cK)) + geom_point() + ggtitle("Average median insert size per day")
+ggplot(IS, aes(x=number, y=avg_MedSize, colour=cK)) + geom_point() + ggtitle("Average median insert size Vs. number of samples")
+ggplot(IS, aes(x=dt, y=avg_SD, colour=cK)) + geom_point() + ggtitle("Average standard deviation of insertsizes per day")
+ggplot(IS, aes(x=number, y=avg_SD, colour=cK)) + geom_point() + ggtitle("Average standard deviation of insertsizes Vs. number of samples")
+
+dbDisconnect(connection)
+```
+It seems like as time goes on, the insertsizes fluctuate in size more.
+## InsertSizes ONCO
+```{r echo=FALSE}
+
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res1 <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(InsertSizes.MedianSize) as avg_MedSize, avg(InsertSizes.StandardDeviation) as avg_SD, count(*) as number, Samples.capturingKit as cK
+FROM InsertSizes INNER JOIN Samples ON InsertSizes.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01' AND Samples.capturingKit LIKE '%onco%'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+IS <- dbFetch(res1)
+dbClearResult(res1)
+IS$dt <- as.Date(IS$dt)
+
+ggplot(IS, aes(x=dt, y=avg_MedSize, colour=cK)) + geom_point() + ggtitle("Average median insert size per day")
+ggplot(IS, aes(x=number, y=avg_MedSize, colour=cK)) + geom_point() + ggtitle("Average median insert size Vs. number of samples")
+ggplot(IS, aes(x=dt, y=avg_SD, colour=cK)) + geom_point() + ggtitle("Average standard deviation of insertsizes per day")
+ggplot(IS, aes(x=number, y=avg_SD, colour=cK)) + geom_point() + ggtitle("Average standard deviation of insertsizes Vs. number of samples")
+dbDisconnect(connection)
+```
+
+
+## InsertSizes SVP
+```{r echo=FALSE}
+
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res1 <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(InsertSizes.MedianSize) as avg_MedSize, avg(InsertSizes.StandardDeviation) as avg_SD, count(*) as number, Samples.capturingKit as cK
+FROM InsertSizes INNER JOIN Samples ON InsertSizes.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01' AND Samples.capturingKit LIKE '%svp%'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+IS <- dbFetch(res1)
+dbClearResult(res1)
+IS$dt <- as.Date(IS$dt)
+
+ggplot(IS, aes(x=dt, y=avg_MedSize, colour=cK)) + geom_point() + ggtitle("Average median insert size per day")
+ggplot(IS, aes(x=number, y=avg_MedSize, colour=cK)) + geom_point() + ggtitle("Average median insert size Vs. number of samples")
+ggplot(IS, aes(x=dt, y=avg_SD, colour=cK)) + geom_point() + ggtitle("Average standard deviation of insertsizes per day")
+ggplot(IS, aes(x=number, y=avg_SD, colour=cK)) + geom_point() + ggtitle("Average standard deviation of insertsizes Vs. number of samples")
+dbDisconnect(connection)
+```
+
+
+## InsertSizes PCS
+```{r echo=FALSE}
+
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res1 <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(InsertSizes.MedianSize) as avg_MedSize, avg(InsertSizes.StandardDeviation) as avg_SD, count(*) as number, Samples.capturingKit as cK
+FROM InsertSizes INNER JOIN Samples ON InsertSizes.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01' AND Samples.capturingKit LIKE '%pcs%'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+IS <- dbFetch(res1)
+dbClearResult(res1)
+IS$dt <- as.Date(IS$dt)
+
+ggplot(IS, aes(x=dt, y=avg_MedSize, colour=cK)) + geom_point() + ggtitle("Average median insert size per day")
+ggplot(IS, aes(x=number, y=avg_MedSize, colour=cK)) + geom_point() + ggtitle("Average median insert size Vs. number of samples")
+ggplot(IS, aes(x=dt, y=avg_SD, colour=cK)) + geom_point() + ggtitle("Average standard deviation of insertsizes per day")
+ggplot(IS, aes(x=number, y=avg_SD, colour=cK)) + geom_point() + ggtitle("Average standard deviation of insertsizes Vs. number of samples")
+dbDisconnect(connection)
+```
+
+
+## InsertSizes CARDIO
+```{r echo=FALSE}
+
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res1 <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(InsertSizes.MedianSize) as avg_MedSize, avg(InsertSizes.StandardDeviation) as avg_SD, count(*) as number, Samples.capturingKit as cK
+FROM InsertSizes INNER JOIN Samples ON InsertSizes.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01' AND Samples.capturingKit LIKE '%cardio%'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+IS <- dbFetch(res1)
+dbClearResult(res1)
+IS$dt <- as.Date(IS$dt)
+
+ggplot(IS, aes(x=dt, y=avg_MedSize, colour=cK)) + geom_point() + ggtitle("Average median insert size per day")
+ggplot(IS, aes(x=number, y=avg_MedSize, colour=cK)) + geom_point() + ggtitle("Average median insert size Vs. number of samples")
+ggplot(IS, aes(x=dt, y=avg_SD, colour=cK)) + geom_point() + ggtitle("Average standard deviation of insertsizes per day")
+ggplot(IS, aes(x=number, y=avg_SD, colour=cK)) + geom_point() + ggtitle("Average standard deviation of insertsizes Vs. number of samples")
+dbDisconnect(connection)
+```
+
+
+## InsertSizes FH
+```{r echo=FALSE}
+
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res1 <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(InsertSizes.MedianSize) as avg_MedSize, avg(InsertSizes.StandardDeviation) as avg_SD, count(*) as number, Samples.capturingKit as cK
+FROM InsertSizes INNER JOIN Samples ON InsertSizes.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01' AND Samples.capturingKit LIKE '%fh%'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+IS <- dbFetch(res1)
+dbClearResult(res1)
+IS$dt <- as.Date(IS$dt)
+
+ggplot(IS, aes(x=dt, y=avg_MedSize, colour=cK)) + geom_point() + ggtitle("Average median insert size per day")
+ggplot(IS, aes(x=number, y=avg_MedSize, colour=cK)) + geom_point() + ggtitle("Average median insert size Vs. number of samples")
+ggplot(IS, aes(x=dt, y=avg_SD, colour=cK)) + geom_point() + ggtitle("Average standard deviation of insertsizes per day")
+ggplot(IS, aes(x=number, y=avg_SD, colour=cK)) + geom_point() + ggtitle("Average standard deviation of insertsizes Vs. number of samples")
+ggplot(IS, aes(x=cK, fill=cK)) + geom_bar() + ggtitle("Number of samples")
+dbDisconnect(connection)
+```
+
+# Alignment Summary Metrics
+
+[Alignment Summary metrics wiki link](https://github.com/jprofijt/analysis-metrics-prediction-display/wiki/Alignment-summary-metrics)
+```{r echo=FALSE}
+library(knitr)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+kable(dbListFields(connection, "AlignmentSummaryMetrics"), col.names = c("Fields"))
+
+dbReadTable(connection, "AlignmentSummaryMetrics")
+```
+### HQ Error rate
+```{r echo=FALSE}
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(AlignmentSummaryMetrics.PFHQErrorRate) as avg_ErrorRate, count(*) as number, Samples.capturingKit as cK, Samples.Sequencer as s
+FROM AlignmentSummaryMetrics INNER JOIN Samples ON AlignmentSummaryMetrics.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01' AND AlignmentSummaryMetrics.Category == 'PAIR'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+ASM <- dbFetch(res)
+dbClearResult(res)
+dbDisconnect(connection)
+ASM$dt <- as.Date(ASM$dt)
+
+ggplot(ASM, aes(x=dt, y=avg_ErrorRate, colour = s)) + geom_point() + ggtitle("High Qualty Error Rate over time") + xlab("Date") + ylab("Average Error Rate per run")  + labs(colour = "Sequencer")
+```
+We can see 2 peeks in 2017 and 2018.
+
+```{r}
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+res <- dbSendQuery(connection,"
+                   Select RUNS.RunID, RUNS.Sequencer, RUNS.Date, RunSummary.* FROM RUNS INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID")
+InteropSummary <- dbFetch(res)
+dbClearResult(res)
+dbDisconnect(connection)
+InteropSummary$Date <- as.Date(InteropSummary$Date)
+head(InteropSummary)
+
+ggplot(InteropSummary, aes(x=Date, y=Q30, colour = Sequencer)) + geom_point() + ggtitle("Interop data, Percentage of bases with quality higher than 30") + xlab("Date") + ylab("%>Q30")  + labs(colour = "Sequencer")
+
+```
+```{r}
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+res <- dbSendQuery(connection,"
+                   Select RUNS.RunID, RUNS.Sequencer, RUNS.Date, RunSummary.* FROM RUNS INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID where RUNS.Sequencer LIKE '%NB%'")
+InteropSummary <- dbFetch(res)
+dbClearResult(res)
+dbDisconnect(connection)
+InteropSummary$Date <- as.Date(InteropSummary$Date)
+InteropSummary$Day <- weekdays(InteropSummary$Date)
+head(InteropSummary)
+
+ggplot(InteropSummary, aes(x=Day, y=Q30, colour = Day)) + geom_boxplot() + ggtitle("Interop data, Percentage of bases with quality higher than 30 NB seqeuencers") + xlab("Date") + ylab("%>Q30")  + labs(colour = "Weekday")
+
+```
+* welke runs vallen erbuiten
+
+```{r}
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+res <- dbSendQuery(connection,"
+                   Select RUNS.RunID, RUNS.Sequencer, RUNS.Date, RunSummary.* FROM RUNS INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID where RUNS.Sequencer LIKE '%M0%'")
+InteropSummary <- dbFetch(res)
+dbClearResult(res)
+dbDisconnect(connection)
+InteropSummary$Date <- as.Date(InteropSummary$Date)
+InteropSummary$Day <- weekdays(InteropSummary$Date)
+head(InteropSummary)
+
+ggplot(InteropSummary, aes(x=Day, y=Q30, colour = Day)) + geom_boxplot() + ggtitle("Interop data, Percentage of bases with quality higher than 30 M seqeuencers") + xlab("Date") + ylab("%>Q30")  + labs(colour = "Weekday")
+
+```
+```{r}
+ggplot(InteropSummary, aes(x=Date, y=Intensity, colour = Sequencer)) + geom_point() + ggtitle("Interop data, Intensity") + xlab("Date") + ylab("Intensity")  + labs(colour = "Sequencer")
+```
+
+```{r}
+ggplot(InteropSummary, aes(x=Date, y=Yield, colour = Sequencer)) + geom_point() + ggtitle("Yield over time") + xlab("Date") + ylab("Yield")  + labs(colour = "Sequencer")
+```
+
+```{r}
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+dbListFields(connection, "RUNS")
+res <- dbSendQuery(connection,"
+                   Select Samples.run, Samples.Sequencer, Samples.Flowcell, Samples.startDate, AlignmentSummaryMetrics.PFHQalignedQ20Bases, RUNS.RunID, RunSummary.* FROM AlignmentSummaryMetrics INNER JOIN Samples ON Samples.ID==AlignmentSummaryMetrics.SampleID INNER JOIN RUNS ON Samples.run==RUNS.Number AND Samples.Sequencer==RUNS.Sequencer AND Samples.startDate==RUNS.Date INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID where AlignmentSummaryMetrics.Category=='PAIR'")
+query <- dbFetch(res)
+dbClearResult(res)
+dbDisconnect(connection)
+query$startDate <- as.Date(query$startDate)
+query
+head(query)
+ggplot(query, aes(x=Intensity, y=Q30, colour = Sequencer)) + geom_point() + ggtitle("Interop data, Percentage of bases with quality higher than 30") + xlab("Intensity") + ylab("Q30")  + labs(colour = "Sequencer")
+```
+
+
+```{r}
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+dbListFields(connection, "RUNS")
+res <- dbSendQuery(connection,"
+                   Select Samples.run, Samples.Sequencer, Samples.Flowcell, Samples.startDate, AlignmentSummaryMetrics.PFHQalignedQ20Bases, RUNS.RunID, RunSummary.* FROM AlignmentSummaryMetrics INNER JOIN Samples ON Samples.ID==AlignmentSummaryMetrics.SampleID INNER JOIN RUNS ON Samples.run==RUNS.Number AND Samples.Sequencer==RUNS.Sequencer AND Samples.startDate==RUNS.Date INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID where AlignmentSummaryMetrics.Category=='PAIR'")
+query <- dbFetch(res)
+dbClearResult(res)
+dbDisconnect(connection)
+query$startDate <- as.Date(query$startDate)
+query
+head(query)
+ggplot(query, aes(x=Intensity, y=Q30, colour = Sequencer)) + geom_point() + ggtitle("Interop data, Percentage of bases with quality higher than 30") + xlab("Date") + ylab("Intencity")  + labs(colour = "Sequencer")
+```
+### Mismatch Rate
+```{r echo=FALSE}
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(AlignmentSummaryMetrics.PFmismatchRate) as avg_MismatchRate, count(*) as number, Samples.capturingKit as cK, Samples.Sequencer  as s
+FROM AlignmentSummaryMetrics INNER JOIN Samples ON AlignmentSummaryMetrics.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01' AND AlignmentSummaryMetrics.Category == 'PAIR'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+ASM <- dbFetch(res)
+dbClearResult(res)
+ASM$dt <- as.Date(ASM$dt)
+
+dbDisconnect(connection)
+ggplot(ASM, aes(x=dt, y=avg_MismatchRate, colour = s)) + geom_point() + ggtitle("Mismatch rate over time") + xlab("Date") + ylab("Average mismatch rate per day per run") + labs(colour = "Sequencer")
+```
+
+```{r echo=FALSE}
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(AlignmentSummaryMetrics.PFHQalignedQ20Bases) as avg_Q20, avg(AlignmentSummaryMetrics.MeanReadLenght * AlignmentSummaryMetrics.TotalReads) as total_bases, count(*) as number, Samples.capturingKit as cK, Samples.Sequencer as s
+FROM AlignmentSummaryMetrics INNER JOIN Samples ON AlignmentSummaryMetrics.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01' AND AlignmentSummaryMetrics.Category == 'PAIR'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+ASM <- dbFetch(res)
+dbClearResult(res)
+ASM$dt <- as.Date(ASM$dt)
+
+ASM$Q20F <- ASM$avg_Q20 / ASM$total_bases
+dbDisconnect(connection)
+
+p <- (ggplot(ASM, aes(x=dt, y=Q20F, colour = s)) + geom_point() + ggtitle("Fraction of bases with a quality of 20 or higher") + xlab("Date") + ylab("Average Bases with quality 20 or higher") + labs(colour = "Sequencer") + geom_smooth(data = subset(ASM, ASM$s == 'NB501043')))
+png("q20line.png")
+print(p)
+dev.off()
+
+```
+Fraction is calculated by taking the mean read lenght * total reads = total bases. bases with q20 or higer / total bases
+```{r echo=FALSE}
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(AlignmentSummaryMetrics.BadCycles) as avg_BadCycles, count(*) as number, Samples.capturingKit as cK
+FROM AlignmentSummaryMetrics INNER JOIN Samples ON AlignmentSummaryMetrics.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01' AND AlignmentSummaryMetrics.Category == 'PAIR'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+ASM <- dbFetch(res)
+dbClearResult(res)
+ASM$dt <- as.Date(ASM$dt)
+
+dbDisconnect(connection)
+ggplot(ASM, aes(x=dt, y=avg_BadCycles)) + geom_point() + ggtitle("Bad Cycles") + xlab("Date") + ylab("Average Bases with quality 20 or higher")
+```
+Bad-Cycles: The number of instrument cycles in which 80% or more of base calls were no-calls
+
+It seems that there are no bad cycles consistantly over time.
+
+# Flagstat
+
+[Flagstat metrics wiki link](https://github.com/jprofijt/analysis-metrics-prediction-display/wiki/Flagstat)
+```{r echo=FALSE}
+library(knitr)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+kable(dbListFields(connection, "FlagstatMetrics"), col.names = c("Fields"))
+dbDisconnect(connection)
+```
+## Duplicates
+```{r echo=FALSE}
+library(knitr)
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(FlagstatMetrics.TotalPass + FlagstatMetrics.TotalFail) as n_reads, avg(FlagstatMetrics.DuplicatePass + FlagstatMetrics.DuplicateFail) as dup_reads, count(*) as number, Samples.capturingKit as cK
+FROM FlagstatMetrics INNER JOIN Samples ON FlagstatMetrics.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+FL <- dbFetch(res)
+dbClearResult(res)
+FL$dt <- as.Date(FL$dt)
+
+FL$dupPCT <- FL$dup_reads / FL$n_reads
+dbDisconnect(connection)
+
+ggplot(FL, aes(x=dt, y=dupPCT)) + geom_point() + ggtitle("Fraction of duplicate reads over time") + ylab("Fraction of duplicate reads") + xlab("Date")
+```
+
+## Mapped 
+```{r echo=FALSE}
+library(knitr)
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(FlagstatMetrics.TotalPass + FlagstatMetrics.TotalFail) as n_reads, avg(FlagstatMetrics.MappedPass + FlagstatMetrics.MappedFail) as map_reads, count(*) as number, Samples.capturingKit as cK
+FROM FlagstatMetrics INNER JOIN Samples ON FlagstatMetrics.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+FL <- dbFetch(res)
+dbClearResult(res)
+FL$dt <- as.Date(FL$dt)
+
+FL$mapPCT <- FL$map_reads / FL$n_reads
+dbDisconnect(connection)
+
+ggplot(FL, aes(x=dt, y=mapPCT)) + geom_point() + ggtitle("Fraction of Mapped reads over time") + ylab("Fraction of mapped reads") + xlab("Date")
+```
+
+## paired in sequencing
+```{r echo=FALSE}
+library(knitr)
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(FlagstatMetrics.TotalPass + FlagstatMetrics.TotalFail) as n_reads, avg(FlagstatMetrics.PairedSeqPass + FlagstatMetrics.PairedSeqFail) as p_reads, count(*) as number, Samples.capturingKit as cK
+FROM FlagstatMetrics INNER JOIN Samples ON FlagstatMetrics.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+FL <- dbFetch(res)
+dbClearResult(res)
+FL$dt <- as.Date(FL$dt)
+
+FL$pairPCT <- FL$p_reads / FL$n_reads
+dbDisconnect(connection)
+
+ggplot(FL, aes(x=dt, y=pairPCT)) + geom_point() + ggtitle("Fraction of paired reads over time") + ylab("Fraction of paired reads") + xlab("Date")
+```
+
+## properly paired
+```{r echo=FALSE}
+library(knitr)
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(FlagstatMetrics.TotalPass + FlagstatMetrics.TotalFail) as n_reads, avg(FlagstatMetrics.PoperPairPass + FlagstatMetrics.ProperPairFail) as p_reads, count(*) as number, Samples.capturingKit as cK
+FROM FlagstatMetrics INNER JOIN Samples ON FlagstatMetrics.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+FL <- dbFetch(res)
+dbClearResult(res)
+FL$dt <- as.Date(FL$dt)
+
+FL$ppairPCT <- FL$p_reads / FL$n_reads
+dbDisconnect(connection)
+
+ggplot(FL, aes(x=dt, y=ppairPCT)) + geom_point() + ggtitle("Fraction of properly paired reads over time") + ylab("Fraction of properly paired reads") + xlab("Date")
+```
+
+## Unmapped Mate pair
+```{r echo=FALSE}
+library(knitr)
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(FlagstatMetrics.TotalPass + FlagstatMetrics.TotalFail) as n_reads, avg(FlagstatMetrics.SelfAndMatePass + FlagstatMetrics.SelfAndMateFail) as unmate_reads, count(*) as number, Samples.capturingKit as cK
+FROM FlagstatMetrics INNER JOIN Samples ON FlagstatMetrics.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+FL <- dbFetch(res)
+dbClearResult(res)
+FL$dt <- as.Date(FL$dt)
+
+FL$unmatePCT <- FL$unmate_reads / FL$n_reads
+dbDisconnect(connection)
+
+ggplot(FL, aes(x=dt, y=unmatePCT)) + geom_point() + ggtitle("Fraction of reads with mate unmapped") + ylab("Fraction of unmapped mate pairs") + xlab("Date")
+```
+
+## Singletons 
+```{r echo=FALSE}
+library(knitr)
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(FlagstatMetrics.TotalPass + FlagstatMetrics.TotalFail) as n_reads, avg(FlagstatMetrics.SingletonsPercentage) as singleton_pct, count(*) as number, Samples.capturingKit as cK
+FROM FlagstatMetrics INNER JOIN Samples ON FlagstatMetrics.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+FL <- dbFetch(res)
+dbClearResult(res)
+FL$dt <- as.Date(FL$dt)
+
+
+dbDisconnect(connection)
+
+ggplot(FL, aes(x=dt, y=singleton_pct)) + geom_point() + ggtitle("Fraction of reads with itself unmapped and mate is mapped") + ylab("Fraction of singletons") + xlab("Date")
+```
+
+## mate mapped to diffrent chr
+```{r echo=FALSE}
+library(knitr)
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(FlagstatMetrics.TotalPass + FlagstatMetrics.TotalFail) as n_reads, avg(FlagstatMetrics.
+MateOnDiffChromosomeLowPass + FlagstatMetrics.
+MateOnDiffChromosomeLowFail) as dchr_reads, count(*) as number, Samples.capturingKit as cK
+FROM FlagstatMetrics INNER JOIN Samples ON FlagstatMetrics.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+FL <- dbFetch(res)
+dbClearResult(res)
+FL$dt <- as.Date(FL$dt)
+
+FL$dchrPCT <- FL$dchr_reads / FL$n_reads
+dbDisconnect(connection)
+
+ggplot(FL, aes(x=dt, y=dchrPCT)) + geom_point() + ggtitle("Fraction of reads with mate mapped to diffrent chromosome") + ylab("Fraction of reads with mate on different chr") + xlab("Date")
+```
+
+## mate mapped to diffrent chr Q>-5
+```{r echo=FALSE}
+library(knitr)
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(FlagstatMetrics.TotalPass + FlagstatMetrics.TotalFail) as n_reads, avg(FlagstatMetrics.
+MateOnDiffChromosomeHighPass + FlagstatMetrics.
+MateOnDiffChromosomeHighFail) as dchr_reads, count(*) as number, Samples.capturingKit as cK
+FROM FlagstatMetrics INNER JOIN Samples ON FlagstatMetrics.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+FL <- dbFetch(res)
+dbClearResult(res)
+FL$dt <- as.Date(FL$dt)
+
+FL$dchrPCT <- FL$dchr_reads / FL$n_reads
+dbDisconnect(connection)
+
+ggplot(FL, aes(x=dt, y=dchrPCT)) + geom_point() + ggtitle("Fraction of reads with mate mapped to diffrent chromosome") + ylab("Fraction of reads with mate on different chr") + xlab("Date")
+```
+```{r echo=FALSE}
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(FlagstatMetrics.ProperPairPCT) as avg_pair, count(*) as number, Samples.capturingKit as cK
+FROM FlagstatMetrics INNER JOIN Samples ON FlagstatMetrics.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+FL <- dbFetch(res)
+dbClearResult(res)
+FL$dt <- as.Date(FL$dt)
+
+dbDisconnect(connection)
+ggplot(FL, aes(x=dt, y=avg_pair)) + geom_point() + ggtitle("Properly mapped paired reads over time") + xlab("Date") + ylab("Percentage of properly mapped pairs")
+
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt, avg(FlagstatMetrics.ProperPairPCT) as avg_pair, count(*) as number, Samples.capturingKit as cK
+FROM FlagstatMetrics INNER JOIN Samples ON FlagstatMetrics.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01' AND FlagstatMetrics.ProperPairPCT < 90
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+FL <- dbFetch(res)
+dbClearResult(res)
+FL$dt <- as.Date(FL$dt)
+
+dbDisconnect(connection)
+ggplot(FL, aes(x=dt, y=avg_pair, colour = cK)) + geom_point() + ggtitle("Properly mapped paired reads percentage over time (lower than 90 %)") + xlab("Date") + ylab("Percentage of properly mapped pairs")
+```
+
+# Quality by cycle
+
+[Quality by cycle wiki link](https://github.com/jprofijt/analysis-metrics-prediction-display/wiki/Quality-by-cycle-metrics)
+```{r echo=FALSE}
+library(knitr)
+
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+kable(dbListFields(connection, "QualityByCycle"), col.names = c("Fields"))
+dbDisconnect(connection)
+```
+## Average Qualty per cycle
+
+```{r echo=FALSE}
+library(knitr)
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt,  avg(QualityByCycle.Quality) as avg_qual, count(*) as number, Samples.capturingKit as cK, Samples.Sequencer as s
+FROM QualityByCycle INNER JOIN Samples ON QualityByCycle.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+QbC <- dbFetch(res)
+dbClearResult(res)
+QbC$dt <- as.Date(QbC$dt)
+
+
+dbDisconnect(connection)
+
+ggplot(QbC, aes(x=dt, y=avg_qual, colour=s)) + geom_point() + ggtitle("Average quality by cycle per day") + ylab("Quality") + xlab("Date") + labs(colour = "Sequencers")
+```
+
+# HS Metrics
+
+[Hs-metrics wiki link](https://github.com/jprofijt/analysis-metrics-prediction-display/wiki/Hs-metrics)
+```{r echo=FALSE}
+library(knitr)
+
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+kable(dbListFields(connection, "hsMetrics"), col.names = c("Fields"))
+dbDisconnect(connection)
+```
+
+```{r echo=FALSE}
+library(knitr)
+library(ggplot2)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+
+res <- dbSendQuery(connection, "
+select Samples.startDate as dt,  avg(hsMetrics.OnTargetBases) as avg_on_target, avg(hsMetrics.PFBasesAligned) as avg_bases_aligned, count(*) as number, Samples.capturingKit as cK, Samples.Sequencer as s
+FROM hsMetrics INNER JOIN Samples ON hsMetrics.SampleID=Samples.ID
+where Samples.startDate > '2016-01-01'
+group by Samples.startDate, Samples.run
+order by Samples.startDate asc;")
+HS <- dbFetch(res)
+dbClearResult(res)
+HS$dt <- as.Date(HS$dt)
+
+HS$fractionOnTarget <- HS$avg_on_target / HS$avg_bases_aligned
+
+dbDisconnect(connection)
+
+ggplot(HS, aes(x=dt, y=fractionOnTarget, colour=s)) + geom_point() + ggtitle("Fraction of bases on target per day") + ylab("Fraction on target") + xlab("Date") + labs(colour = "Sequencers")
+```
+
+# Interop data exploration
+Can we represent interop data as single values per run?
+
+## Phasing/prephasing for an interop dataset
+```{r echo=FALSE}
+library(ggplot2)
+library(readr)
+
+interop <- read_csv("interop.csv", col_types = cols(Lane = col_factor(levels = c("1", 
+    "2", "3", "4")), Read = col_factor(levels = c("1", 
+    "2", "3", "4")), Tile = col_integer()), 
+    comment = "#")
+s <- summary(interop$Prephasing)
+s[5]
+med <- median(interop$Prephasing)
+
+ggplot(interop, aes(x=row.names(interop), y=Prephasing, color=Read)) + geom_point() + geom_hline(yintercept = med, color="red") + geom_hline(yintercept = s[2], color="blue") + geom_hline(yintercept = s[5], color="blue") + ggtitle("Percentage of prephasing per read") + ylab("Prephasing (%)") + xlab("Cycle") + theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
+
+ggplot(interop, aes(x=row.names(interop), y=Phasing, color=Read)) + geom_point() + geom_hline(yintercept = median(interop$Phasing), color="red") + geom_hline(yintercept = summary(interop$Phasing)[2], color="blue") + geom_hline(yintercept = summary(interop$Phasing)[5], color="blue") + ggtitle("Percentage of phasing per read") + ylab("phasing (%)") + xlab("Cycle") + theme(axis.text.x=element_blank(),axis.ticks.x=element_blank())
+
+```
+```{r echo=FALSE}
+library(readr)
+EmpiricalPhasing <- read_csv("interop2.csv", comment = "#")
+
+EmpiricalPhasing$Tile <- as.factor(EmpiricalPhasing$Tile)
+
+summary(EmpiricalPhasing$Phasing)
+summary(EmpiricalPhasing$Prephasing)
+
+EmpiricalPhasing$TotalLoss <- EmpiricalPhasing$Phasing + EmpiricalPhasing$Prephasing
+
+summary(EmpiricalPhasing$TotalLoss)
+```
+
+```{r}
+
+```
+* meerdere samples met identieke data, andere barcode
+```{r}
+library(DBI)
+library(knitr)
+library(ggplot2)
+
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/interopFull.db")
+dbListTables(connection)
+dbListFields(connection, "Lanes")
+res <- dbSendQuery(connection, "SELECT Lanes.ReadID, Lanes.LegacyPhasing, Lanes.LegacyPrePhasing, RUNS.Date FROM Lanes INNER JOIN RUNS ON Lanes.UniqueID==RUNS.UniqueID WHERE Lanes.ReadID NOT LIKE '%(I)%'")
+Lanes <- dbFetch(res)
+dbClearResult(res)
+dbDisconnect(connection)
+Lanes$Date <- as.Date(Lanes$Date)
+ggplot(Lanes, aes(x=Date, y=LegacyPhasing, colour=ReadID)) + geom_point()
+ggplot(Lanes, aes(x=Date, y=LegacyPrePhasing, colour=ReadID)) + geom_point()
+```
+
+```{r}
+library(DBI)
+library(knitr)
+library(ggplot2)
+
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+dbListTables(connection)
+dbListFields(connection, "Lanes")
+res <- dbSendQuery(connection, "SELECT Lanes.ReadID, Lanes.LegacyPhasing, Lanes.LegacyPrePhasing, RunSummary.Q30, RunSummary.Yield, RUNS.Date FROM Lanes INNER JOIN RUNS ON Lanes.UniqueID==RUNS.UniqueID INNER JOIN RunSummary ON Lanes.UniqueID==RunSummary.UniqueID AND Lanes.ReadID==RunSummary.ReadID WHERE Lanes.ReadID NOT LIKE '%(I)%'")
+Lanes <- dbFetch(res)
+dbClearResult(res)
+dbDisconnect(connection)
+Lanes$Date <- as.Date(Lanes$Date)
+ggplot(Lanes, aes(x=Q30, y=LegacyPhasing, colour=ReadID)) + geom_point() + xlab("Percentage of reads with Q30 or higher") +ylab("Phasing percentage")
+ggplot(Lanes, aes(x=Q30, y=LegacyPrePhasing, colour=ReadID)) + geom_point() + xlab("Percentage of reads with Q30 or higher") +ylab("PrePhasing percentage")
+
+```
+
+```{r}
+library(DBI)
+library(knitr)
+library(ggplot2)
+
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+dbSendQuery(connection, "DELETE FROM RUNS WHERE UniqueID NOT IN (SELECT min(UniqueID) FROM RUNS GROUP BY RunID, Number, Sequencer, Date, Flowcell);")
+res <- dbSendQuery(connection, "Select * from RUNS")
+Duplicates <- dbFetch(res)
+dbClearResult(res)
+dbDisconnect(connection)
+
+Duplicates
+```
+
+```{r}
+library(DBI)
+library(knitr)
+library(ggplot2)
+
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+res <- dbSendQuery(connection, "
+                  SELECT 
+                  RunSummary.Yield,
+                  RunSummary.ProjectedYield,
+                  RunSummary.Intensity,
+                  RunSummary.Q30 as RunQ30,
+                  Lanes.Tiles,
+                  Lanes.DensityMIN,
+                  Lanes.DensityMAX,
+                  Lanes.ClusterMIN,
+                  Lanes.ClusterMAX,
+                  Lanes.LegacyPhasing,
+                  Lanes.LegacyPrePhasing,
+                  Lanes.PhasingSlope,
+                  Lanes.PrePhasingSlope,
+                  Lanes.PhasingOffset,
+                  Lanes.PrePhasingOffset,
+                  Lanes.Reads,
+                  Lanes.ReadsPF,
+                  Lanes.Q30 as LaneQ30,
+                  Lanes.IntensityMIN,
+                  Lanes.IntensityMAX,
+                  AlignmentSummaryMetrics.TotalReads,
+                  AlignmentSummaryMetrics.PFreads,
+                  AlignmentSummaryMetrics.PFnoise,
+                  AlignmentSummaryMetrics.PFaligned,
+                  AlignmentSummaryMetrics.PFalignedBases,
+                  AlignmentSummaryMetrics.PFHQmedianMismatches,
+                  AlignmentSummaryMetrics.PFmismatchRate,
+                  AlignmentSummaryMetrics.PFHQErrorRate, 
+                  AlignmentSummaryMetrics.PFindelRate,
+                  AlignmentSummaryMetrics.MeanReadLenght,
+                  AlignmentSummaryMetrics.ReadsAllignedInPairs,
+                  AlignmentSummaryMetrics.BadCycles,
+                  AlignmentSummaryMetrics.StrandBalance,
+                  AlignmentSummaryMetrics.ChimerasPercentage,
+                  AlignmentSummaryMetrics.AdapterPercentage,
+                  InsertSizes.MedianSize,
+                  InsertSizes.MedianAbsoluteDeviation,
+                  InsertSizes.MinSize,
+                  InsertSizes.MaxSize,
+                  InsertSizes.MeanSize,
+                  InsertSizes.StandardDeviation,
+                  InsertSizes.ReadPairs,
+                  InsertSizes.W10,
+                  InsertSizes.W20,
+                  InsertSizes.W30,
+                  InsertSizes.W40,
+                  InsertSizes.W50,
+                  InsertSizes.W60,
+                  InsertSizes.W70,
+                  InsertSizes.W80,
+                  InsertSizes.W90,
+                  InsertSizes.W99,
+                  hsMetrics.BaitTerritory,
+                  hsMetrics.TargetTerritory,
+                  hsMetrics.BaitDesignEfficientcy,
+                  hsMetrics.TotalReads,
+                  hsMetrics.PFreads,
+                  hsMetrics.PFuniqueReads,
+                  hsMetrics.PFUQaligned,
+                  hsMetrics.PFBasesAligned,
+                  hsMetrics.SelectedBasesPercentage,
+                  hsMetrics.OnBaitVSselected,
+                  hsMetrics.MeanBaitCoverage,
+                  hsMetrics.MeanTargetCoverage,
+                  hsMetrics.MedianTargetCoverage,
+                  hsMetrics.PercentageUsableBasesOnBait,
+                  hsMetrics.PercentageUsableBasesOnTarget,
+                  hsMetrics.FoldEnrichment,
+                  hsMetrics.ZeroCVGtargetsPercentage,
+                  hsMetrics.ExcDupePct,
+                  hsMetrics.ExcMapQPct,
+                  hsMetrics.ExcBaseQPct,
+                  hsMetrics.ExcOverlapPct,
+                  hsMetrics.ExcOffTargetPct,
+                  hsMetrics.TargetBasesPct1X,
+                  hsMetrics.TargetBasesPct2X,
+                  hsMetrics.TargetBasesPct10X,
+                  hsMetrics.TargetBasesPct20X,
+                  hsMetrics.TargetBasesPct30X,
+                  hsMetrics.TargetBasesPct40X,
+                  hsMetrics.TargetBasesPct50X, 
+                  hsMetrics.TargetBasesPct100X,
+                  hsMetrics.HsLibrarySize,
+                  hsMetrics.HsPenalty10X,
+                  hsMetrics.HsPenalty20X,
+                  hsMetrics.HsPenalty30X,
+                  hsMetrics.HsPenalty40X,
+                  hsMetrics.HsPenalty50X,
+                  hsMetrics.HsPenalty100X,
+                  hsMetrics.AtDropout,
+                  hsMetrics.GCDropout,
+                  hsMetrics.HetSNPsensitivity,
+                  hsMetrics.HetSNPQ,
+                  FlagstatMetrics.TotalPass,
+                  FlagstatMetrics.TotalFail,
+                  FlagstatMetrics.SecondaryPass,
+                  FlagstatMetrics.SecondaryFail,
+                  FlagstatMetrics.SupplementaryPass,
+                  FlagstatMetrics.SupplementaryFail,
+                  FlagstatMetrics.DuplicatePass,
+                  FlagstatMetrics.DuplicateFail,
+                  FlagstatMetrics.MappedPass,
+                  FlagstatMetrics.MappedFail,
+                  FlagstatMetrics.MappedPercentage,
+                  FlagstatMetrics.PairedSeqPass,
+                  FlagstatMetrics.PairedSeqFail,
+                  FlagstatMetrics.Read1Pass,
+                  FlagstatMetrics.Read1Fail,
+                  FlagstatMetrics.Read2Pass,
+                  FlagstatMetrics.Read2Fail,
+                  FlagstatMetrics.PoperPairPass,
+                  FlagstatMetrics.ProperPairFail,
+                  FlagstatMetrics.ProperPairPCT,
+                  FlagstatMetrics.SelfAndMatePass,
+                  FlagstatMetrics.SelfAndMateFail,
+                  FlagstatMetrics.SingletonsPass,
+                  FlagstatMetrics.SingletonsFail,
+                  FlagstatMetrics.SingletonsPercentage,
+                  FlagstatMetrics.MateOnDiffChromosomeLowPass,
+                  FlagstatMetrics.MateOnDiffChromosomeLowFail,
+                  FlagstatMetrics.MateOnDiffChromosomeHighPass,
+                  FlagstatMetrics.MateOnDiffChromosomeHighFail,
+                  RUNS.Date,
+                  Samples.ID,
+                  Lanes.Lane,
+                  Samples.Sequencer,
+                  Lanes.ReadID
+                  FROM Samples 
+                  INNER JOIN RUNS ON Samples.Sequencer==RUNS.Sequencer AND Samples.Run==RUNS.Number AND Samples.startDate==RUNS.Date 
+                  INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID
+                  INNER JOIN Lanes ON RUNS.UniqueID==Lanes.UniqueID
+                  LEFT JOIN AlignmentSummaryMetrics ON Samples.ID==AlignmentSummaryMetrics.SampleID
+                  LEFT JOIN InsertSizes ON Samples.ID==InsertSizes.SampleID
+                  LEFT JOIN hsMetrics ON Samples.ID==hsMetrics.SampleID
+                  LEFT JOIN FlagstatMetrics ON Samples.ID==FlagstatMetrics.SampleID
+                  WHERE AlignmentSummaryMetrics.Category=='PAIR' AND Lanes.ReadID NOT LIKE '%(I)' AND Samples.Sequencer LIKE '%M0%';")
+tMiSeq <- dbFetch(res)
+dbClearResult(res)
+res <- dbSendQuery(connection, "
+                  SELECT 
+                  RunSummary.Yield,
+                  RunSummary.ProjectedYield,
+                  RunSummary.Intensity,
+                  RunSummary.Q30 as RunQ30,
+                  Lanes.Tiles,
+                  Lanes.DensityMIN,
+                  Lanes.DensityMAX,
+                  Lanes.ClusterMIN,
+                  Lanes.ClusterMAX,
+                  Lanes.LegacyPhasing,
+                  Lanes.LegacyPrePhasing,
+                  Lanes.PhasingSlope,
+                  Lanes.PrePhasingSlope,
+                  Lanes.PhasingOffset,
+                  Lanes.PrePhasingOffset,
+                  Lanes.Reads,
+                  Lanes.ReadsPF,
+                  Lanes.Q30 as LaneQ30,
+                  Lanes.IntensityMIN,
+                  Lanes.IntensityMAX,
+                  AlignmentSummaryMetrics.TotalReads,
+                  AlignmentSummaryMetrics.PFreads,
+                  AlignmentSummaryMetrics.PFnoise,
+                  AlignmentSummaryMetrics.PFaligned,
+                  AlignmentSummaryMetrics.PFalignedBases,
+                  AlignmentSummaryMetrics.PFHQmedianMismatches,
+                  AlignmentSummaryMetrics.PFmismatchRate,
+                  AlignmentSummaryMetrics.PFHQErrorRate, 
+                  AlignmentSummaryMetrics.PFindelRate,
+                  AlignmentSummaryMetrics.MeanReadLenght,
+                  AlignmentSummaryMetrics.ReadsAllignedInPairs,
+                  AlignmentSummaryMetrics.BadCycles,
+                  AlignmentSummaryMetrics.StrandBalance,
+                  AlignmentSummaryMetrics.ChimerasPercentage,
+                  AlignmentSummaryMetrics.AdapterPercentage,
+                  InsertSizes.MedianSize,
+                  InsertSizes.MedianAbsoluteDeviation,
+                  InsertSizes.MinSize,
+                  InsertSizes.MaxSize,
+                  InsertSizes.MeanSize,
+                  InsertSizes.StandardDeviation,
+                  InsertSizes.ReadPairs,
+                  InsertSizes.W10,
+                  InsertSizes.W20,
+                  InsertSizes.W30,
+                  InsertSizes.W40,
+                  InsertSizes.W50,
+                  InsertSizes.W60,
+                  InsertSizes.W70,
+                  InsertSizes.W80,
+                  InsertSizes.W90,
+                  InsertSizes.W99,
+                  hsMetrics.BaitTerritory,
+                  hsMetrics.TargetTerritory,
+                  hsMetrics.BaitDesignEfficientcy,
+                  hsMetrics.TotalReads,
+                  hsMetrics.PFreads,
+                  hsMetrics.PFuniqueReads,
+                  hsMetrics.PFUQaligned,
+                  hsMetrics.PFBasesAligned,
+                  hsMetrics.SelectedBasesPercentage,
+                  hsMetrics.OnBaitVSselected,
+                  hsMetrics.MeanBaitCoverage,
+                  hsMetrics.MeanTargetCoverage,
+                  hsMetrics.MedianTargetCoverage,
+                  hsMetrics.PercentageUsableBasesOnBait,
+                  hsMetrics.PercentageUsableBasesOnTarget,
+                  hsMetrics.FoldEnrichment,
+                  hsMetrics.ZeroCVGtargetsPercentage,
+                  hsMetrics.ExcDupePct,
+                  hsMetrics.ExcMapQPct,
+                  hsMetrics.ExcBaseQPct,
+                  hsMetrics.ExcOverlapPct,
+                  hsMetrics.ExcOffTargetPct,
+                  hsMetrics.TargetBasesPct1X,
+                  hsMetrics.TargetBasesPct2X,
+                  hsMetrics.TargetBasesPct10X,
+                  hsMetrics.TargetBasesPct20X,
+                  hsMetrics.TargetBasesPct30X,
+                  hsMetrics.TargetBasesPct40X,
+                  hsMetrics.TargetBasesPct50X, 
+                  hsMetrics.TargetBasesPct100X,
+                  hsMetrics.HsLibrarySize,
+                  hsMetrics.HsPenalty10X,
+                  hsMetrics.HsPenalty20X,
+                  hsMetrics.HsPenalty30X,
+                  hsMetrics.HsPenalty40X,
+                  hsMetrics.HsPenalty50X,
+                  hsMetrics.HsPenalty100X,
+                  hsMetrics.AtDropout,
+                  hsMetrics.GCDropout,
+                  hsMetrics.HetSNPsensitivity,
+                  hsMetrics.HetSNPQ,
+                  FlagstatMetrics.TotalPass,
+                  FlagstatMetrics.TotalFail,
+                  FlagstatMetrics.SecondaryPass,
+                  FlagstatMetrics.SecondaryFail,
+                  FlagstatMetrics.SupplementaryPass,
+                  FlagstatMetrics.SupplementaryFail,
+                  FlagstatMetrics.DuplicatePass,
+                  FlagstatMetrics.DuplicateFail,
+                  FlagstatMetrics.MappedPass,
+                  FlagstatMetrics.MappedFail,
+                  FlagstatMetrics.MappedPercentage,
+                  FlagstatMetrics.PairedSeqPass,
+                  FlagstatMetrics.PairedSeqFail,
+                  FlagstatMetrics.Read1Pass,
+                  FlagstatMetrics.Read1Fail,
+                  FlagstatMetrics.Read2Pass,
+                  FlagstatMetrics.Read2Fail,
+                  FlagstatMetrics.PoperPairPass,
+                  FlagstatMetrics.ProperPairFail,
+                  FlagstatMetrics.ProperPairPCT,
+                  FlagstatMetrics.SelfAndMatePass,
+                  FlagstatMetrics.SelfAndMateFail,
+                  FlagstatMetrics.SingletonsPass,
+                  FlagstatMetrics.SingletonsFail,
+                  FlagstatMetrics.SingletonsPercentage,
+                  FlagstatMetrics.MateOnDiffChromosomeLowPass,
+                  FlagstatMetrics.MateOnDiffChromosomeLowFail,
+                  FlagstatMetrics.MateOnDiffChromosomeHighPass,
+                  FlagstatMetrics.MateOnDiffChromosomeHighFail,
+                  RUNS.Date,
+                  Samples.ID,
+                  Lanes.Lane,
+                  Samples.Sequencer,
+                  Lanes.ReadID
+                  FROM Samples 
+                  INNER JOIN RUNS ON Samples.Sequencer==RUNS.Sequencer AND Samples.Run==RUNS.Number AND Samples.startDate==RUNS.Date 
+                  INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID
+                  INNER JOIN Lanes ON RUNS.UniqueID==Lanes.UniqueID
+                  LEFT JOIN AlignmentSummaryMetrics ON Samples.ID==AlignmentSummaryMetrics.SampleID
+                  LEFT JOIN InsertSizes ON Samples.ID==InsertSizes.SampleID
+                  LEFT JOIN hsMetrics ON Samples.ID==hsMetrics.SampleID
+                  LEFT JOIN FlagstatMetrics ON Samples.ID==FlagstatMetrics.SampleID
+                  WHERE AlignmentSummaryMetrics.Category=='PAIR' AND Lanes.ReadID NOT LIKE '%(I)' AND Samples.Sequencer LIKE '%NB%';")
+tNextSeq <- dbFetch(res)
+dbClearResult(res)
+
+dbDisconnect(connection)
+tMiSeq$Date <- as.Date(tMiSeq$Date)
+tNextSeq$Date <- as.Date(tNextSeq$Date)
+```
+```{r}
+nummatrix <- subset(tNextSeq, select = -c(Date, ID, ReadID, Lane, Sequencer))
+res <- cor(nummatrix, use = "complete.obs")
+cr <- round(res, 2)
+```
+```{r}
+library(reshape2)
+melted_cormat <- melt(cr)
+```
+
+
+```{r}
+groups <- list("Interop" = colnames(tNextSeq)[1:20], "ASM" = colnames(tNextSeq)[21:35], "InsertSizes" = colnames(tNextSeq)[36:52], "hs" = colnames(tNextSeq)[53:93], "fl" = colnames(tNextSeq)[94:122])
+Interop <- tNextSeq[1:20]
+ASM <- tNextSeq[21:35]
+IS <- tNextSeq[36:52]
+Hs <- tNextSeq[53:93]
+FL <- tNextSeq[94:122]
+IvASM <- round(cor(x=Interop, y=ASM, use = "complete.obs"), 2)
+IvIS <- round(cor(x=Interop, y=IS, use = "complete.obs"), 2)
+IvHS <- round(cor(x=Interop, y=Hs, use = "complete.obs"), 2)
+IvFL <- round(cor(x=Interop, y=FL, use = "complete.obs"), 2)
+```
+```{r}
+library(ggplot2)
+library(reshape2)
+Interop <- tNextSeq[1:20]
+ASM <- tNextSeq[21:35]
+NonLengthRelated <- subset(ASM, select = -c(TotalReads, PFreads, PFaligned, PFalignedBases, MeanReadLenght, ReadsAllignedInPairs))
+IvASM <- round(cor(x=Interop, y=NonLengthRelated, use = "complete.obs"), 2)
+
+
+
+
+ggplot(data = melt(IvASM, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Pearson\nCorrelation") + 
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Alignment Summary Metrics") + ggtitle("Correlations between Interop Metrics vs Alignemnt Summary Metrics")
+
+data <- as.data.frame(Interop$Intensity)
+colnames(data) <- c("Intensity")
+data$MismatchRate <- NonLengthRelated$PFmismatchRate
+ggplot(data, aes(x=Intensity, y=MismatchRate)) + geom_point() + geom_smooth(method = 'lm')
+
+LaneQ30 <- as.data.frame(Interop$LaneQ30)
+colnames(LaneQ30) <- c("LaneQ30")
+LaneQ30$MismatchRate <- NonLengthRelated$PFmismatchRate
+
+ggplot(LaneQ30, aes(x=LaneQ30, y=MismatchRate)) + geom_point() + geom_smooth(method = 'lm')
+ 
+```
+```{r}
+library(ggplot2)
+ggplot(data = melt(IvIS, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Pearson\nCorrelation") + 
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Insert Size Metrics") + ggtitle("Correlations between Interop Metrics vs Insert size Metrics")
+```
+```{r}
+library(ggplot2)
+ggplot(data = melt(IvFL, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Pearson\nCorrelation") + 
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Flagstat Metrics") + ggtitle("Interop Metrics vs Flagstat metrics")
+```
+```{r}
+library(ggplot2)
+ggplot(data = melt(IvHS, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Pearson\nCorrelation") + 
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("hs Metrics") + ggtitle("Interop Metrics vs hs metrics")
+```
+
+```{r}
+# Reorder the correlation matrix
+cormat <- reorder_cormat(cr)
+upper_tri <- get_upper_tri(cormat)
+# Melt the correlation matrix
+melted_cormat <- melt(upper_tri, na.rm = TRUE)
+# Create a ggheatmap
+ggheatmap <- ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
+ geom_tile(color = "white")+
+ scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+    name="Pearson\nCorrelation") +
+  theme_minimal()+ # minimal theme
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1))+
+ coord_fixed()
+# Print the heatmap
+print(ggheatmap)
+```
+
+```{r}
+library(ggplot2)
+ggplot(subset(tNextSeq, select = c(Date, DensityMAX, ReadID, Sequencer)), aes(x=Date, y=DensityMAX, colour=Sequencer)) + geom_point()
+ggplot(subset(tNextSeq, select = c(Date, DensityMIN, ReadID, Sequencer)), aes(x=Date, y=DensityMIN, colour=Sequencer)) + geom_point()
+```
+
+```{r}
+library(Hmisc)
+```
+
+
+

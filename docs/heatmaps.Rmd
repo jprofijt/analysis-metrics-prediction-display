@@ -1,0 +1,421 @@
+---
+title: "Correlations"
+author: "Jouke Profijt"
+date: "4/9/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = '/home/jouke/Documents/Projects/Analysis-Metrics-Prediction/' )
+```
+
+```{r}
+library(DBI)
+library(knitr)
+library(ggplot2)
+
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+res <- dbSendQuery(connection, "
+                  SELECT 
+                  RunSummary.Yield,
+                  RunSummary.ProjectedYield,
+                  RunSummary.Intensity,
+                  RunSummary.Q30 as RunQ30,
+                  Lanes.Tiles,
+                  Lanes.DensityMIN,
+                  Lanes.DensityMAX,
+                  Lanes.ClusterMIN,
+                  Lanes.ClusterMAX,
+                  Lanes.LegacyPhasing,
+                  Lanes.LegacyPrePhasing,
+                  Lanes.PhasingSlope,
+                  Lanes.PrePhasingSlope,
+                  Lanes.PhasingOffset,
+                  Lanes.PrePhasingOffset,
+                  Lanes.Reads,
+                  Lanes.ReadsPF,
+                  Lanes.Q30 as LaneQ30,
+                  Lanes.IntensityMIN,
+                  Lanes.IntensityMAX,
+                  AlignmentSummaryMetrics.TotalReads,
+                  AlignmentSummaryMetrics.PFreads,
+                  AlignmentSummaryMetrics.PFnoise,
+                  AlignmentSummaryMetrics.PFaligned,
+                  AlignmentSummaryMetrics.PFalignedBases,
+                  AlignmentSummaryMetrics.PFHQmedianMismatches,
+                  AlignmentSummaryMetrics.PFmismatchRate,
+                  AlignmentSummaryMetrics.PFHQErrorRate, 
+                  AlignmentSummaryMetrics.PFindelRate,
+                  AlignmentSummaryMetrics.MeanReadLenght,
+                  AlignmentSummaryMetrics.ReadsAllignedInPairs,
+                  AlignmentSummaryMetrics.BadCycles,
+                  AlignmentSummaryMetrics.StrandBalance,
+                  AlignmentSummaryMetrics.ChimerasPercentage,
+                  AlignmentSummaryMetrics.AdapterPercentage,
+                  InsertSizes.MedianSize,
+                  InsertSizes.MedianAbsoluteDeviation,
+                  InsertSizes.MinSize,
+                  InsertSizes.MaxSize,
+                  InsertSizes.MeanSize,
+                  InsertSizes.StandardDeviation,
+                  InsertSizes.ReadPairs,
+                  InsertSizes.W10,
+                  InsertSizes.W20,
+                  InsertSizes.W30,
+                  InsertSizes.W40,
+                  InsertSizes.W50,
+                  InsertSizes.W60,
+                  InsertSizes.W70,
+                  InsertSizes.W80,
+                  InsertSizes.W90,
+                  InsertSizes.W99,
+                  hsMetrics.BaitTerritory,
+                  hsMetrics.TargetTerritory,
+                  hsMetrics.BaitDesignEfficientcy,
+                  hsMetrics.TotalReads,
+                  hsMetrics.PFreads,
+                  hsMetrics.PFuniqueReads,
+                  hsMetrics.PFUQaligned,
+                  hsMetrics.PFBasesAligned,
+                  hsMetrics.SelectedBasesPercentage,
+                  hsMetrics.OnBaitVSselected,
+                  hsMetrics.MeanBaitCoverage,
+                  hsMetrics.MeanTargetCoverage,
+                  hsMetrics.MedianTargetCoverage,
+                  hsMetrics.PercentageUsableBasesOnBait,
+                  hsMetrics.PercentageUsableBasesOnTarget,
+                  hsMetrics.FoldEnrichment,
+                  hsMetrics.ZeroCVGtargetsPercentage,
+                  hsMetrics.ExcDupePct,
+                  hsMetrics.ExcMapQPct,
+                  hsMetrics.ExcBaseQPct,
+                  hsMetrics.ExcOverlapPct,
+                  hsMetrics.ExcOffTargetPct,
+                  hsMetrics.TargetBasesPct1X,
+                  hsMetrics.TargetBasesPct2X,
+                  hsMetrics.TargetBasesPct10X,
+                  hsMetrics.TargetBasesPct20X,
+                  hsMetrics.TargetBasesPct30X,
+                  hsMetrics.TargetBasesPct40X,
+                  hsMetrics.TargetBasesPct50X, 
+                  hsMetrics.TargetBasesPct100X,
+                  hsMetrics.HsLibrarySize,
+                  hsMetrics.HsPenalty10X,
+                  hsMetrics.HsPenalty20X,
+                  hsMetrics.HsPenalty30X,
+                  hsMetrics.HsPenalty40X,
+                  hsMetrics.HsPenalty50X,
+                  hsMetrics.HsPenalty100X,
+                  hsMetrics.AtDropout,
+                  hsMetrics.GCDropout,
+                  hsMetrics.HetSNPsensitivity,
+                  hsMetrics.HetSNPQ,
+                  FlagstatMetrics.TotalPass,
+                  FlagstatMetrics.TotalFail,
+                  FlagstatMetrics.SecondaryPass,
+                  FlagstatMetrics.SecondaryFail,
+                  FlagstatMetrics.SupplementaryPass,
+                  FlagstatMetrics.SupplementaryFail,
+                  FlagstatMetrics.DuplicatePass,
+                  FlagstatMetrics.DuplicateFail,
+                  FlagstatMetrics.MappedPass,
+                  FlagstatMetrics.MappedFail,
+                  FlagstatMetrics.MappedPercentage,
+                  FlagstatMetrics.PairedSeqPass,
+                  FlagstatMetrics.PairedSeqFail,
+                  FlagstatMetrics.Read1Pass,
+                  FlagstatMetrics.Read1Fail,
+                  FlagstatMetrics.Read2Pass,
+                  FlagstatMetrics.Read2Fail,
+                  FlagstatMetrics.PoperPairPass,
+                  FlagstatMetrics.ProperPairFail,
+                  FlagstatMetrics.ProperPairPCT,
+                  FlagstatMetrics.SelfAndMatePass,
+                  FlagstatMetrics.SelfAndMateFail,
+                  FlagstatMetrics.SingletonsPass,
+                  FlagstatMetrics.SingletonsFail,
+                  FlagstatMetrics.SingletonsPercentage,
+                  FlagstatMetrics.MateOnDiffChromosomeLowPass,
+                  FlagstatMetrics.MateOnDiffChromosomeLowFail,
+                  FlagstatMetrics.MateOnDiffChromosomeHighPass,
+                  FlagstatMetrics.MateOnDiffChromosomeHighFail,
+                  RUNS.Date,
+                  Samples.ID,
+                  Lanes.Lane,
+                  Samples.Sequencer,
+                  Lanes.ReadID
+                  FROM Samples 
+                  INNER JOIN RUNS ON Samples.Sequencer==RUNS.Sequencer AND Samples.Run==RUNS.Number AND Samples.startDate==RUNS.Date 
+                  INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID
+                  INNER JOIN Lanes ON RUNS.UniqueID==Lanes.UniqueID
+                  LEFT JOIN AlignmentSummaryMetrics ON Samples.ID==AlignmentSummaryMetrics.SampleID
+                  LEFT JOIN InsertSizes ON Samples.ID==InsertSizes.SampleID
+                  LEFT JOIN hsMetrics ON Samples.ID==hsMetrics.SampleID
+                  LEFT JOIN FlagstatMetrics ON Samples.ID==FlagstatMetrics.SampleID
+                  WHERE AlignmentSummaryMetrics.Category=='PAIR' AND Lanes.ReadID NOT LIKE '%(I)' AND Samples.Sequencer LIKE '%M0%';")
+tMiSeq <- dbFetch(res)
+dbClearResult(res)
+res <- dbSendQuery(connection, "
+                  SELECT 
+                  RunSummary.Yield,
+                  RunSummary.ProjectedYield,
+                  RunSummary.Intensity,
+                  RunSummary.Q30 as RunQ30,
+                  Lanes.Tiles,
+                  Lanes.DensityMIN,
+                  Lanes.DensityMAX,
+                  Lanes.ClusterMIN,
+                  Lanes.ClusterMAX,
+                  Lanes.LegacyPhasing,
+                  Lanes.LegacyPrePhasing,
+                  Lanes.PhasingSlope,
+                  Lanes.PrePhasingSlope,
+                  Lanes.PhasingOffset,
+                  Lanes.PrePhasingOffset,
+                  Lanes.Reads,
+                  Lanes.ReadsPF,
+                  Lanes.Q30 as LaneQ30,
+                  Lanes.IntensityMIN,
+                  Lanes.IntensityMAX,
+                  AlignmentSummaryMetrics.TotalReads,
+                  AlignmentSummaryMetrics.PFreads,
+                  AlignmentSummaryMetrics.PFnoise,
+                  AlignmentSummaryMetrics.PFaligned,
+                  AlignmentSummaryMetrics.PFalignedBases,
+                  AlignmentSummaryMetrics.PFHQmedianMismatches,
+                  AlignmentSummaryMetrics.PFmismatchRate,
+                  AlignmentSummaryMetrics.PFHQErrorRate, 
+                  AlignmentSummaryMetrics.PFindelRate,
+                  AlignmentSummaryMetrics.MeanReadLenght,
+                  AlignmentSummaryMetrics.ReadsAllignedInPairs,
+                  AlignmentSummaryMetrics.BadCycles,
+                  AlignmentSummaryMetrics.StrandBalance,
+                  AlignmentSummaryMetrics.ChimerasPercentage,
+                  AlignmentSummaryMetrics.AdapterPercentage,
+                  InsertSizes.MedianSize,
+                  InsertSizes.MedianAbsoluteDeviation,
+                  InsertSizes.MinSize,
+                  InsertSizes.MaxSize,
+                  InsertSizes.MeanSize,
+                  InsertSizes.StandardDeviation,
+                  InsertSizes.ReadPairs,
+                  InsertSizes.W10,
+                  InsertSizes.W20,
+                  InsertSizes.W30,
+                  InsertSizes.W40,
+                  InsertSizes.W50,
+                  InsertSizes.W60,
+                  InsertSizes.W70,
+                  InsertSizes.W80,
+                  InsertSizes.W90,
+                  InsertSizes.W99,
+                  hsMetrics.BaitTerritory,
+                  hsMetrics.TargetTerritory,
+                  hsMetrics.BaitDesignEfficientcy,
+                  hsMetrics.TotalReads,
+                  hsMetrics.PFreads,
+                  hsMetrics.PFuniqueReads,
+                  hsMetrics.PFUQaligned,
+                  hsMetrics.PFBasesAligned,
+                  hsMetrics.SelectedBasesPercentage,
+                  hsMetrics.OnBaitVSselected,
+                  hsMetrics.MeanBaitCoverage,
+                  hsMetrics.MeanTargetCoverage,
+                  hsMetrics.MedianTargetCoverage,
+                  hsMetrics.PercentageUsableBasesOnBait,
+                  hsMetrics.PercentageUsableBasesOnTarget,
+                  hsMetrics.FoldEnrichment,
+                  hsMetrics.ZeroCVGtargetsPercentage,
+                  hsMetrics.ExcDupePct,
+                  hsMetrics.ExcMapQPct,
+                  hsMetrics.ExcBaseQPct,
+                  hsMetrics.ExcOverlapPct,
+                  hsMetrics.ExcOffTargetPct,
+                  hsMetrics.TargetBasesPct1X,
+                  hsMetrics.TargetBasesPct2X,
+                  hsMetrics.TargetBasesPct10X,
+                  hsMetrics.TargetBasesPct20X,
+                  hsMetrics.TargetBasesPct30X,
+                  hsMetrics.TargetBasesPct40X,
+                  hsMetrics.TargetBasesPct50X, 
+                  hsMetrics.TargetBasesPct100X,
+                  hsMetrics.HsLibrarySize,
+                  hsMetrics.HsPenalty10X,
+                  hsMetrics.HsPenalty20X,
+                  hsMetrics.HsPenalty30X,
+                  hsMetrics.HsPenalty40X,
+                  hsMetrics.HsPenalty50X,
+                  hsMetrics.HsPenalty100X,
+                  hsMetrics.AtDropout,
+                  hsMetrics.GCDropout,
+                  hsMetrics.HetSNPsensitivity,
+                  hsMetrics.HetSNPQ,
+                  FlagstatMetrics.TotalPass,
+                  FlagstatMetrics.TotalFail,
+                  FlagstatMetrics.SecondaryPass,
+                  FlagstatMetrics.SecondaryFail,
+                  FlagstatMetrics.SupplementaryPass,
+                  FlagstatMetrics.SupplementaryFail,
+                  FlagstatMetrics.DuplicatePass,
+                  FlagstatMetrics.DuplicateFail,
+                  FlagstatMetrics.MappedPass,
+                  FlagstatMetrics.MappedFail,
+                  FlagstatMetrics.MappedPercentage,
+                  FlagstatMetrics.PairedSeqPass,
+                  FlagstatMetrics.PairedSeqFail,
+                  FlagstatMetrics.Read1Pass,
+                  FlagstatMetrics.Read1Fail,
+                  FlagstatMetrics.Read2Pass,
+                  FlagstatMetrics.Read2Fail,
+                  FlagstatMetrics.PoperPairPass,
+                  FlagstatMetrics.ProperPairFail,
+                  FlagstatMetrics.ProperPairPCT,
+                  FlagstatMetrics.SelfAndMatePass,
+                  FlagstatMetrics.SelfAndMateFail,
+                  FlagstatMetrics.SingletonsPass,
+                  FlagstatMetrics.SingletonsFail,
+                  FlagstatMetrics.SingletonsPercentage,
+                  FlagstatMetrics.MateOnDiffChromosomeLowPass,
+                  FlagstatMetrics.MateOnDiffChromosomeLowFail,
+                  FlagstatMetrics.MateOnDiffChromosomeHighPass,
+                  FlagstatMetrics.MateOnDiffChromosomeHighFail,
+                  RUNS.Date,
+                  Samples.ID,
+                  Lanes.Lane,
+                  Samples.Sequencer,
+                  Lanes.ReadID
+                  FROM Samples 
+                  INNER JOIN RUNS ON Samples.Sequencer==RUNS.Sequencer AND Samples.Run==RUNS.Number AND Samples.startDate==RUNS.Date 
+                  INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID
+                  INNER JOIN Lanes ON RUNS.UniqueID==Lanes.UniqueID
+                  LEFT JOIN AlignmentSummaryMetrics ON Samples.ID==AlignmentSummaryMetrics.SampleID
+                  LEFT JOIN InsertSizes ON Samples.ID==InsertSizes.SampleID
+                  LEFT JOIN hsMetrics ON Samples.ID==hsMetrics.SampleID
+                  LEFT JOIN FlagstatMetrics ON Samples.ID==FlagstatMetrics.SampleID
+                  WHERE AlignmentSummaryMetrics.Category=='PAIR' AND Lanes.ReadID NOT LIKE '%(I)' AND Samples.Sequencer LIKE '%NB%';")
+tNextSeq <- dbFetch(res)
+dbClearResult(res)
+
+dbDisconnect(connection)
+tMiSeq$Date <- as.Date(tMiSeq$Date)
+tNextSeq$Date <- as.Date(tNextSeq$Date)
+```
+```{r}
+nummatrix <- subset(tNextSeq, select = -c(Date, ID, ReadID, Lane, Sequencer))
+res <- cor(nummatrix, use = "complete.obs")
+cr <- round(res, 2)
+```
+```{r}
+library(reshape2)
+melted_cormat <- melt(cr)
+```
+
+
+```{r}
+groups <- list("Interop" = colnames(tNextSeq)[1:20], "ASM" = colnames(tNextSeq)[21:35], "InsertSizes" = colnames(tNextSeq)[36:52], "hs" = colnames(tNextSeq)[53:93], "fl" = colnames(tNextSeq)[94:122])
+Interop <- tNextSeq[1:20]
+ASM <- tNextSeq[21:35]
+IS <- tNextSeq[36:52]
+Hs <- tNextSeq[53:93]
+FL <- tNextSeq[94:122]
+IvASM <- round(cor(x=Interop, y=ASM, use = "complete.obs"), 2)
+IvIS <- round(cor(x=Interop, y=IS, use = "complete.obs"), 2)
+IvHS <- round(cor(x=Interop, y=Hs, use = "complete.obs"), 2)
+IvFL <- round(cor(x=Interop, y=FL, use = "complete.obs"), 2)
+```
+```{r}
+library(ggplot2)
+library(reshape2)
+Interop <- tNextSeq[1:20]
+ASM <- tNextSeq[21:35]
+NonLengthRelated <- subset(ASM, select = -c(TotalReads, PFreads, PFaligned, PFalignedBases, MeanReadLenght, ReadsAllignedInPairs))
+IvASM <- round(cor(x=Interop, y=NonLengthRelated, use = "complete.obs"), 2)
+
+
+
+
+ggplot(data = melt(IvASM, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Pearson\nCorrelation") + 
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Alignment Summary Metrics") + ggtitle("Correlations between Interop Metrics vs Alignemnt Summary Metrics")
+
+data <- as.data.frame(Interop$Intensity)
+colnames(data) <- c("Intensity")
+data$MismatchRate <- NonLengthRelated$PFmismatchRate
+ggplot(data, aes(x=Intensity, y=MismatchRate)) + geom_point() + geom_smooth(method = 'lm', formula = 'y ~ x') + xlab("Average Intensity") + ylab("Mismatch Rate") + ggtitle("Mismatch Rate vs Intensity")
+
+LaneQ30 <- as.data.frame(Interop$LaneQ30)
+colnames(LaneQ30) <- c("LaneQ30")
+LaneQ30$MismatchRate <- NonLengthRelated$PFmismatchRate
+
+ggplot(LaneQ30, aes(x=LaneQ30, y=MismatchRate)) + geom_point() + geom_smooth(method = 'lm', formula = 'y ~ x') + xlab("Q30 measured per Lane") + ylab("Mismatch Rate") + ggtitle("Mismatch Rate vs Q30")
+
+Imax <- as.data.frame(Interop$IntensityMAX)
+colnames(Imax) <- c("Imax")
+Imax$MismatchRate <- NonLengthRelated$PFmismatchRate
+
+ggplot(Imax, aes(x=Imax, y=MismatchRate)) + geom_point() + geom_smooth(method = 'lm', formula = 'y ~ x') + xlab("Maximum Intensity") + ylab("Mismatch Rate") + ggtitle("Mismatch Rate vs Intensity")
+ 
+```
+
+* Error Rate and Mismatch rate possibly seem to be affected by many interop metrics.
+Error Rate: The fraction of bases that mismatch the reference in PF HQ aligned reads
+MismatchRate: the rate of bases mismatching the refference for all bases aligned to the reference sequence.
+PFHQmedianMismatches: The median number of mismatches versus the reference sequence in reads that were aligned to the reference at high quality
+Which are basically the same metrics.
+
+* Indel rate is possibly affected by the number of reads
+Indel rate: the number of insertion and deletion events per 100 aligned bases. Uses the number of events as the numerator, not the number of inserted or deleted bases
+
+```{r}
+IvASM <- round(cor(x=Interop, y=ASM, use = "complete.obs", method = "kendall"), 2)
+ggplot(data = melt(IvASM, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="kendall\nCorrelation") + 
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Alignment Summary Metrics") + ggtitle("Correlations between Interop Metrics vs Alignemnt Summary Metrics")
+
+```
+
+```{r}
+library(ggplot2)
+ggplot(data = melt(IvIS, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Pearson\nCorrelation") + 
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Insert Size Metrics") + ggtitle("Correlations between Interop Metrics vs Insert size Metrics")
+```
+```{r}
+library(ggplot2)
+ggplot(data = melt(IvFL, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Pearson\nCorrelation") + 
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Flagstat Metrics") + ggtitle("Interop Metrics vs Flagstat metrics")
+```
+```{r}
+library(ggplot2)
+ggplot(data = melt(IvHS, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+   name="Pearson\nCorrelation") + 
+  theme_minimal()+ 
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("hs Metrics") + ggtitle("Interop Metrics vs hs metrics")
+```
