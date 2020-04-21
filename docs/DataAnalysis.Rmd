@@ -1,0 +1,231 @@
+---
+title: "DataAnalysis"
+author: "Jouke Profijt"
+date: "2/24/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "~/Analysis-Metrics-Prediction")
+```
+
+# Exploratory data analysis: Picard metrics
+
+```{r}
+library(pander)
+## cleanup incomplete sample sheets
+
+asl <- read.csv("data/prm06/gatheredMetrics/AlignmentSummaryMetrics.csv", header = T)
+
+str(asl)
+
+gc <- read.csv("data/prm06/gatheredMetrics/gcBiasMetrics.csv")
+str(gc)
+
+hs <- read.csv("data/prm06/gatheredMetrics/hsMetrics.csv")
+str(hs)
+
+fl <- read.csv("data/prm06/gatheredMetrics/FlagstatMetrics.csv")
+str(fl)
+
+samplesheet <- read.csv("data/QXTR_644-Exoom_v3.csv")
+str(samplesheet)
+```
+
+The data is composed of sample entries per project per run and can fall in first_of_pair, second_of_pair and pair. The sample, library and read_group collumns seem to not contain any information. 
+
+```{r}
+asl <- asl[,!(names(asl) %in% c("SAMPLE", "LIBRARY", "READ_GROUP"))]
+asl$prepkit <- unlist(lapply(asl$PROJECT_ID, function (x) {
+  prepkit <- strsplit(toString(x), '-')[[1]][2]
+  if (is.na(prepkit)) {
+    return("Unknown")
+  } else {
+    return(toupper(prepkit))
+  }
+}))
+asl$DATE <- as.Date(as.character(asl$DATE), format = "%y%m%d")
+
+
+
+
+```
+```{r}
+library(readr)
+samples <- read_csv("data/zips/prm05/samples.csv")
+
+names(samples)[1] <- "SAMPLE_ID"
+
+merged <- merge(x=asl, y=samples,by="SAMPLE_ID")
+
+merged$DATE <- as.Date(as.character(merged$sequencingStartDate), format = "%y%m%d")
+```
+```{r}
+library(ggplot2)
+ggplot(merged, aes(y=PCT_PF_READS_ALIGNED, x=DATE, colour=capturingKit)) + geom_point() + ggtitle("Percentage of Filter passed reads alligned to the reference sequence")
+```
+```{r}
+str(insertSizeMetrics)
+as.factor(insertSizeMetrics$PAIR_ORIENTATION)
+```
+```{r}
+library(ggplot2)
+aslOnco <- subset(asl, grepl(".*ONCO.*", prepkit))
+aslExoom <- subset(asl, grepl(".*EXOOM.*", prepkit))
+aslSVP <-subset(asl, grepl(".*SVP.*", prepkit))
+aslCardio <- subset(asl, grepl(".*CARDIO.*", prepkit))
+
+aslPair <- subset(asl, CATEGORY == "PAIR")
+aslOncoPair <- subset(aslOnco, CATEGORY == "PAIR")
+aslExoomPair <- subset(aslExoom, CATEGORY == "PAIR")
+aslSVPPair <-subset(aslSVP, CATEGORY == "PAIR")
+aslCardioPair <- subset(aslCardio, CATEGORY == "PAIR")
+
+aslR1 <- subset(asl, CATEGORY == "FIRST_OF_PAIR")
+aslOncoR1 <- subset(aslOnco, CATEGORY == "FIRST_OF_PAIR")
+aslExoomR1 <- subset(aslExoom, CATEGORY == "FIRST_OF_PAIR")
+aslSVPR1 <-subset(aslSVP, CATEGORY == "FIRST_OF_PAIR")
+aslCardioR1 <- subset(aslCardio, CATEGORY == "FIRST_OF_PAIR")
+
+aslR2 <- subset(asl, CATEGORY == "SECOND_OF_PAIR")
+aslOncoR2 <- subset(aslOnco, CATEGORY == "SECOND_OF_PAIR")
+aslExoomR2 <- subset(aslExoom, CATEGORY == "SECOND_OF_PAIR")
+aslSVPR2 <-subset(aslSVP, CATEGORY == "SECOND_OF_PAIR")
+aslCardioR2 <- subset(aslCardio, CATEGORY == "SECOND_OF_PAIR")
+
+```
+
+## PCT_PF_READS_ALIGNED
+
+_The number of PF reads that were aligned to the reference sequence_
+
+```{r}
+ggplot(asl, aes(y=PCT_PF_READS_ALIGNED, x=prepkit, colour=prepkit)) + geom_boxplot() + ggtitle("Percentage of Filter passed reads alligned to the reference sequence")
+ggplot(aslOnco, aes(y=PCT_PF_READS_ALIGNED, x=CATEGORY, colour=prepkit)) + geom_boxplot() + ggtitle("Percentage of Filter passed reads alligned to the reference sequence")
+ggplot(aslExoom, aes(y=PCT_PF_READS_ALIGNED, x=CATEGORY, colour=prepkit)) + geom_boxplot() + ggtitle("Percentage of Filter passed reads alligned to the reference sequence")
+ggplot(aslSVP, aes(y=PCT_PF_READS_ALIGNED, x=CATEGORY, colour=prepkit)) + geom_boxplot() + ggtitle("Percentage of Filter passed reads alligned to the reference sequence")
+ggplot(aslCardio, aes(y=PCT_PF_READS_ALIGNED, x=CATEGORY, colour=prepkit)) + geom_boxplot() + ggtitle("Percentage of Filter passed reads alligned to the reference sequence")
+```
+
+```{r}
+ggplot(asl, aes(y=PF_READS_ALIGNED, x=prepkit, colour=prepkit)) + geom_boxplot() + ggtitle("Percentage of Filter passed reads alligned to the reference sequence")
+ggplot(aslOnco, aes(y=PCT_PF_READS_ALIGNED, x=CATEGORY, colour=prepkit)) + geom_boxplot() + ggtitle("Percentage of Filter passed reads alligned to the reference sequence")
+ggplot(aslExoom, aes(y=PCT_PF_READS_ALIGNED, x=CATEGORY, colour=prepkit)) + geom_boxplot() + ggtitle("Percentage of Filter passed reads alligned to the reference sequence")
+ggplot(aslSVP, aes(y=PCT_PF_READS_ALIGNED, x=CATEGORY, colour=prepkit)) + geom_boxplot() + ggtitle("Percentage of Filter passed reads alligned to the reference sequence")
+ggplot(aslCardio, aes(y=PCT_PF_READS_ALIGNED, x=CATEGORY, colour=prepkit)) + geom_boxplot() + ggtitle("Percentage of Filter passed reads alligned to the reference sequence")
+
+```
+```{r}
+dataframeCardio <- data.frame()
+aslCardio$prepkit <- as.factor(aslCardio$prepkit)
+
+aslCardioV2 <- aslCardio[aslCardio$prepkit == "CARDIO_V2",]
+aslCardioV3 <- aslCardio[aslCardio$prepkit == "CARDIO_V3",]
+aslCardioV4 <- aslCardio[aslCardio$prepkit == "CARDIO_V4",]
+
+aslCardioV3Outcast <- aslCardioV3[aslCardioV3$PCT_PF_READS_ALIGNED < 0.8,]
+
+aslCardio <- aslCardio[aslCardio$PCT_PF_READS_ALIGNED > 0.8,]
+ggplot(aslCardio, aes(y=PCT_PF_READS_ALIGNED, x=CATEGORY, colour=prepkit)) + geom_boxplot()
+```
+```{r}
+aslOncounder99 <- aslOnco[aslOnco$PCT_PF_READS_ALIGNED  < 0.99,]
+
+ggplot(aslOncounder99, aes(y=PCT_PF_READS_ALIGNED, x=DATE, colour=prepkit)) + geom_point()
+```
+
+```{r}
+onco_v4 <- subset(aslOncoPair, prepkit == "ONCO_V4")
+ggplot(onco_v4, aes(y=PCT_PF_READS_ALIGNED, x=DATE, colour=prepkit)) + geom_point()
+```
+
+```{r}
+ggplot(aslExoomPair, aes(y=PCT_PF_READS_ALIGNED, x=DATE, colour=prepkit)) + geom_point()
+```
+
+```{r}
+Exoom_v3 <- subset(subset(subset(aslExoomPair, prepkit == "Exoom_v3"), DATE > as.Date("2019-01-01")), RUN == "run01")
+head(Exoom_v3)
+```
+```{r}
+ggplot(Exoom_v3, aes(y=MEAN_READ_LENGTH, x=TOTAL_READS)) + geom_point()
+```
+
+## PF_HQ_ERROR_RATE
+
+_The fraction of bases that mismatch the reference in PF HQ aligned reads_
+```{r}
+ggplot(asl, aes(y=PF_HQ_ERROR_RATE, x=prepkit, colour=prepkit)) + geom_boxplot()
+ggplot(aslExoom, aes(x=prepkit, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+ggplot(aslSVP, aes(x=prepkit, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+ggplot(aslCardio, aes(x=prepkit, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+```
+It seems that with the change from SVP_v1 to SVP_v2 had some kind of positive impact on the Fraction of bases that mismatch the reference, in PF HQ aligned reads.
+
+```{r}
+ggplot(aslCardio, aes(x=DATE, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_point()
+```
+The cardio_v4 seems to have lots more datapoints than cardio_v3
+
+
+```{r}
+
+ggplot(aslPair, aes(y=PF_HQ_ERROR_RATE, x=prepkit, colour=prepkit)) + geom_boxplot()
+ggplot(aslExoomPair, aes(x=prepkit, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+ggplot(aslSVPPair, aes(x=prepkit, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+ggplot(aslCardioPair, aes(x=prepkit, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+
+```
+
+```{r}
+ggplot(aslR1, aes(y=PF_HQ_ERROR_RATE, x=prepkit, colour=prepkit)) + geom_boxplot()
+ggplot(aslExoomR1, aes(x=prepkit, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+ggplot(aslSVPR1, aes(x=prepkit, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+ggplot(aslCardioR1, aes(x=prepkit, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+
+```
+
+
+```{r}
+
+
+ggplot(aslR2, aes(y=PF_HQ_ERROR_RATE, x=prepkit, colour=prepkit)) + geom_boxplot()
+ggplot(aslExoomR2, aes(x=prepkit, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+ggplot(aslSVPR2, aes(x=prepkit, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+ggplot(aslCardioR2, aes(x=prepkit, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+
+```
+
+```{r}
+ggplot(asl, aes(x=CATEGORY, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+ggplot(aslSVP, aes(x=CATEGORY, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+ggplot(aslExoom, aes(x=CATEGORY, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+ggplot(aslCardio, aes(x=CATEGORY, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+ggplot(aslOnco, aes(x=CATEGORY, y=PF_HQ_ERROR_RATE, colour=prepkit)) + geom_boxplot()
+```
+
+```{r}
+library(ggplot2)
+flgs <- read.csv("data/prm06/gatheredMetrics/FlagstatMetrics.csv", header = T)
+flgs$prepkit <- unlist(lapply(flgs$PROJECT_ID, function (x) {
+  prepkit <- strsplit(toString(x), '-')[[1]][2]
+  if (is.na(prepkit)) {
+    return("Unknown")
+  } else {
+    return(toupper(prepkit))
+  }
+}))
+flgs$DATE <- as.Date(as.character(flgs$DATE), format = "%y%m%d")
+str(flgs)
+```
+```{r}
+ggplot(flgs, aes(x=DATE, y=MAPPED_PCT, colour=prepkit)) + geom_point()
+```
+
+```{r}
+info <- read.csv("Info.csv")
+r1 <- read.csv("Read 1.csv")
+r2 <- read.csv("Read 2 (I).csv")
+r3 <- read.csv("Read 3 (I).csv")
+```

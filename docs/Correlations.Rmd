@@ -318,13 +318,10 @@ res <- dbSendQuery(connection, "
                   SELECT
                   RUNS.Date,
                   sum(RunSummary.Yield) as Yield,
-                  sum(RunSummary.ProjectedYield) as ProjectedYield,
                   sum(RunSummary.Intensity) as Intensity,
                   avg(RunSummary.Q30) as RunQ30,
                   sum(Lanes.Tiles) as Tiles,
-                  avg(Lanes.DensityMIN) as DensitySD,
                   avg(Lanes.DensityMAX) as ClusterDensity,
-                  avg(Lanes.ClusterMIN) as ClusterSD,
                   avg(Lanes.ClusterMAX) as ClustersPCT,
                   avg(Lanes.LegacyPhasing) as LegacyPhasing,
                   avg(Lanes.LegacyPrePhasing) as LegacyPrePhasing,
@@ -358,6 +355,12 @@ InsertSizesvI <- dbFetch(res)
 InsertSizesvI$Date <- as.Date(InsertSizesvI$Date)
 dbClearResult(res)
 rm(res)
+library(FactoMineR)
+
+res.MFA <- MFA(InsertSizesvI[,-1], 
+               group = c(5, 3, 17), 
+               type = c("s", "f", "s"), name.group = c("Interop numbers", "Interop Frequencies", "Insert Size Metrics"),
+               graph = FALSE)
 ```
 ```{r}
 library(ggplot2)
@@ -416,12 +419,7 @@ rm(res)
 ```
 
 ```{r}
-library(FactoMineR)
 
-res.mfa <- MFA(ASMperRun, 
-               group = c(1, 1, 1, 1, 1, 1, 1, 1, 1), 
-               type = c("n", "f", "f", "f", "c", "s", "f", "f", "f"),
-               graph = FALSE)
 ```
 
 
@@ -574,21 +572,24 @@ fviz_mfa_var(res.MFA, "quanti.var", palette = "jco",
 ```{r}
 library(apcluster)
 
-x <- as.matrix(subset(mfav, select = -c(Weekday, Sequencer, Kit)))
+x <- as.matrix(subset(tNextSeq, select = -c(Weekday, Sequencer, Kit)))
+x <- t(x)
+colnames(x) <- NULL
 
-# cluster genes and write results
 # clustering gebeurd dus standaar op de rijen (genes) maar met t() kan je transponeren
 Clust <- apcluster(negDistMat(r=2), x, details=TRUE)
 Clust
 
 cat("affinity propogation optimal number of clusters:", length(Clust@clusters), "\n")
-sink("qualityMetrics_appclust.csv")
+sink("qualityMetrics_appclust3.csv")
+saveRDS(Clust, file = "appclust3.rds")
 Clust
 sink()
 ```
 
 ```{r}
-saveRDS(Clust, file = "appclust.rds")
+x[,1:2]
+plot(Clust, x[,1:2])
 ```
 
 ```{r}
