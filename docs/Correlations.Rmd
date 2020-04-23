@@ -7,7 +7,7 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-knitr::opts_knit$set(root.dir = '/home/jouke/Documents/Projects/Analysis-Metrics-Prediction/' )
+knitr::opts_knit$set(root.dir = 'C:/Users/Jouke/Documents/analysis-metrics-prediction-display' )
 ```
 
 ```{r echo=FALSE}
@@ -66,45 +66,24 @@ res <- dbSendQuery(connection, "
                   InsertSizes.W80,
                   InsertSizes.W90,
                   InsertSizes.W99,
-                  hsMetrics.BaitTerritory,
-                  hsMetrics.TargetTerritory,
+                  hsMetrics.TotalReads,
                   hsMetrics.BaitDesignEfficientcy,
+                  hsMetrics.PFreads,
+                  (hsMetrics.PFreads - hsMetrics.PFuniqueReads) as DuplicateReads,
                   hsMetrics.PFuniqueReads,
                   hsMetrics.PFUQaligned,
-                  hsMetrics.PFBasesAligned,
-                  hsMetrics.SelectedBasesPercentage,
-                  hsMetrics.OnBaitVSselected,
+                  (hsMetrics.PFBasesAligned/1000000) as PFMegaBasesAligned,
+                  (hsMetrics.PFUQBasesAligned/1000000) as PFUQMegaBasesAligned,
+                  (hsMetrics.OnBaitBases/1000000) as OnBaitMegaBases,
+                  (hsMetrics.NearBaitBases/1000000) as NearBaitMegaBases ,
+                  (hsMetrics.OffBaitBases/1000000) as OffBaitMegaBases,
                   hsMetrics.MeanBaitCoverage,
                   hsMetrics.MeanTargetCoverage,
                   hsMetrics.MedianTargetCoverage,
                   hsMetrics.PercentageUsableBasesOnBait,
                   hsMetrics.PercentageUsableBasesOnTarget,
                   hsMetrics.FoldEnrichment,
-                  hsMetrics.ZeroCVGtargetsPercentage,
-                  hsMetrics.ExcDupePct,
-                  hsMetrics.ExcMapQPct,
-                  hsMetrics.ExcBaseQPct,
-                  hsMetrics.ExcOverlapPct,
-                  hsMetrics.ExcOffTargetPct,
-                  hsMetrics.TargetBasesPct1X,
-                  hsMetrics.TargetBasesPct2X,
-                  hsMetrics.TargetBasesPct10X,
                   hsMetrics.TargetBasesPct20X,
-                  hsMetrics.TargetBasesPct30X,
-                  hsMetrics.TargetBasesPct40X,
-                  hsMetrics.TargetBasesPct50X, 
-                  hsMetrics.TargetBasesPct100X,
-                  hsMetrics.HsLibrarySize,
-                  hsMetrics.HsPenalty10X,
-                  hsMetrics.HsPenalty20X,
-                  hsMetrics.HsPenalty30X,
-                  hsMetrics.HsPenalty40X,
-                  hsMetrics.HsPenalty50X,
-                  hsMetrics.HsPenalty100X,
-                  hsMetrics.AtDropout,
-                  hsMetrics.GCDropout,
-                  hsMetrics.HetSNPsensitivity,
-                  hsMetrics.HetSNPQ,
                   FlagstatMetrics.TotalPass,
                   FlagstatMetrics.SecondaryPass,
                   FlagstatMetrics.SupplementaryPass,
@@ -125,71 +104,35 @@ res <- dbSendQuery(connection, "
                   INNER JOIN RUNS ON Samples.Sequencer==RUNS.Sequencer AND Samples.Run==RUNS.Number AND Samples.startDate==RUNS.Date 
                   INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID
                   INNER JOIN Lanes ON RUNS.UniqueID==Lanes.UniqueID
-                  INNER JOIN AlignmentSummaryMetrics ON Samples.ID==AlignmentSummaryMetrics.SampleID
+                  LEFT JOIN AlignmentSummaryMetrics ON Samples.ID==AlignmentSummaryMetrics.SampleID
                   INNER JOIN InsertSizes ON Samples.ID==InsertSizes.SampleID
                   INNER JOIN hsMetrics ON Samples.ID==hsMetrics.SampleID
                   INNER JOIN FlagstatMetrics ON Samples.ID==FlagstatMetrics.SampleID
                   WHERE AlignmentSummaryMetrics.Category=='PAIR' AND Lanes.ReadID NOT LIKE '%(I)'
                   GROUP BY Samples.ID
                   ORDER BY RUNS.Date")
-tNextSeq <- dbFetch(res)
+Metrics.per.Sample <- dbFetch(res)
 dbClearResult(res)
-tNextSeq2 <- tNextSeq[,-1]
-rownames(tNextSeq2) <- tNextSeq[,1]
-tNextSeq <- tNextSeq2
-rm(tNextSeq2)
+Metrics.per.Sample.pl <- Metrics.per.Sample[,-1]
+rownames(Metrics.per.Sample.pl) <-Metrics.per.Sample[,1]
+Metrics.per.Sample <- Metrics.per.Sample.pl
+rm(Metrics.per.Sample.pl)
 
 dbDisconnect(connection)
 rm(connection, res)
 
 ## Format the dates
-tNextSeq$Date <- as.Date(tNextSeq$Date)
-tNextSeq$Date <- as.factor(weekdays(tNextSeq$Date))
-colnames(tNextSeq)[1] <- "Weekday"
-tNextSeq$Sequencer <- as.factor(tNextSeq$Sequencer)
-tNextSeq$Kit <- as.factor(tNextSeq$Kit)
-```
-
-```{r}
-library(DBI)
-connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
-
-res <- dbSendQuery(connection, "
-                  SELECT
-                  RUNS.Date,
-                  sum(RunSummary.Yield) as Yield,
-                  sum(RunSummary.ProjectedYield) as ProjectedYield,
-                  sum(RunSummary.Intensity) as Intensity,
-                  avg(RunSummary.Q30) as RunQ30,
-                  sum(Lanes.Tiles) as Tiles,
-                  avg(Lanes.DensityMIN) as DensitySD,
-                  avg(Lanes.DensityMAX) as ClusterDensity,
-                  avg(Lanes.ClusterMIN) as ClusterSD,
-                  avg(Lanes.ClusterMAX) as ClustersPCT,
-                  avg(Lanes.LegacyPhasing) as LegacyPhasing,
-                  avg(Lanes.LegacyPrePhasing) as LegacyPrePhasing,
-                  avg(AlignmentSummaryMetrics.PFHQmedianMismatches) as PFHQmedianMismatces,
-                  avg(AlignmentSummaryMetrics.PFmismatchRate) as PFmismatchRate,
-                  avg(AlignmentSummaryMetrics.PFHQErrorRate) as PFHQErrorRate,
-                  avg(AlignmentSummaryMetrics.PFindelRate) as PFindelRate,
-                  avg(AlignmentSummaryMetrics.MeanReadLenght) as MeanReadLenght,
-                  sum(AlignmentSummaryMetrics.ReadsAllignedInPairs) as ReadsAllignedInPairs,
-                  avg(AlignmentSummaryMetrics.StrandBalance) as StrandBalance,
-                  avg(AlignmentSummaryMetrics.ChimerasPercentage) as ChimerasPercentage,
-                  avg(AlignmentSummaryMetrics.AdapterPercentage) as AdapterPercentage
-                  FROM Samples 
-                  INNER JOIN RUNS ON Samples.Sequencer==RUNS.Sequencer AND Samples.Run==RUNS.Number AND Samples.startDate==RUNS.Date 
-                  INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID
-                  INNER JOIN Lanes ON RUNS.UniqueID==Lanes.UniqueID
-                  INNER JOIN AlignmentSummaryMetrics ON Samples.ID==AlignmentSummaryMetrics.SampleID
-                  WHERE AlignmentSummaryMetrics.Category=='PAIR' AND Lanes.ReadID NOT LIKE '%(I)'
-                  GROUP BY Samples.ID
-                  ORDER BY RUNS.Date")
-
-ASMvI <- dbFetch(res)
-ASMvI$Date <- as.Date(ASMvI$Date)
-dbClearResult(res)
-rm(res)
+Metrics.per.Sample$Date <- as.Date(Metrics.per.Sample$Date)
+Metrics.per.Sample$Date <- as.factor(weekdays(Metrics.per.Sample$Date))
+colnames(Metrics.per.Sample)[1] <- "Weekday"
+Metrics.per.Sample$Sequencer <- as.factor(Metrics.per.Sample$Sequencer)
+Metrics.per.Sample$Kit <- as.factor(Metrics.per.Sample$Kit)
+Interop.per.Sample <- Metrics.per.Sample[4:18]
+dependend <-  Metrics.per.Sample[19:79]
+ASM.per.Sample <- Metrics.per.Sample[19:28]
+IS.per.Sample <- Metrics.per.Sample[29:45]
+hs.per.Sample <- Metrics.per.Sample[46:63]
+fl.per.Sample <- Metrics.per.Sample[64:79]
 ```
 
 ```{r}
@@ -259,12 +202,12 @@ Most Interop metrics are not normally distributed - pearson assumes normally dis
 ```{r}
 library(ggplot2)
 library(reshape2)
+library(dplyr)
+dup.interop <- duplicated(Interop.per.Sample)
+unique.interop <- Interop.per.Sample[!dup.interop,]
+unique.asm <- ASM.per.Sample[!dup.interop,]
 
-Interop <- ASMvI[2:12]
-
-ASM <- ASMvI[13:21]
-
-corMat <- round(cor(x=Interop, y=ASM, method = "spearman", use = "complete.obs"), 2)
+corMat <- round(cor(x=unique.interop, y=unique.asm, method = "spearman", use = "complete.obs"), 2)
 
 
 
@@ -273,351 +216,181 @@ ASM.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fi
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
                        midpoint = 0, limit = c(-1,1), space = "Lab", 
                        name="Spearman\nCorrelation") + 
-  theme_minimal()+ 
+  theme_minimal()+ theme(legend.position = "none") + 
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-                                   size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Alignment Summary Metrics") + ggtitle("Correlations between Interop Metrics vs Alignemnt Summary Metrics")
+                                   size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Alignment Summary Metrics") + ggtitle("Interop vs Alignemnt Summary Metrics")
 
 ASM.cor.heatmap
-```
-
-Outstanding correlations:
-```{r}
-flattenCorrMatrix <- function(cormat, pmat) {
-  ut <- upper.tri(cormat)
-  data.frame(
-    row = rownames(cormat)[row(cormat)[ut]],
-    column = rownames(cormat)[col(cormat)[ut]],
-    cor  =(cormat)[ut],
-    p = pmat[ut]
-    )
-}
+ggsave(
+  "asm.png",
+  plot = ASM.cor.heatmap,
+  dpi = 300,
+  limitsize = TRUE
+)
 ```
 
 ```{r}
 library(ggplot2)
 library(reshape2)
-library(Hmisc)
+library(gridExtra)
 
-Interop <- as.matrix(ASMvI[2:12])
 
-ASM <- as.matrix(ASMvI[13:21])
-
-res2 <- rcorr(x=Interop, y=ASM, type = "spearman")
-correlations <- flattenCorrMatrix(res2$r, res2$P)
-
-results <- subset(correlations, !(column %in% colnames(Interop)) & !(row %in% colnames(ASM)))
-
-as.data.frame(results)
-```
-
-```{r}
-library(DBI)
-connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
-
-res <- dbSendQuery(connection, "
-                  SELECT
-                  RUNS.Date,
-                  sum(RunSummary.Yield) as Yield,
-                  sum(RunSummary.ProjectedYield) as ProjectedYield,
-                  sum(RunSummary.Intensity) as Intensity,
-                  avg(RunSummary.Q30) as RunQ30,
-                  sum(Lanes.Tiles) as Tiles,
-                  avg(Lanes.DensityMIN) as DensitySD,
-                  avg(Lanes.DensityMAX) as ClusterDensity,
-                  avg(Lanes.ClusterMIN) as ClusterSD,
-                  avg(Lanes.ClusterMAX) as ClustersPCT,
-                  avg(Lanes.LegacyPhasing) as LegacyPhasing,
-                  avg(Lanes.LegacyPrePhasing) as LegacyPrePhasing,
-                  InsertSizes.MedianSize,
-                  InsertSizes.MedianAbsoluteDeviation,
-                  InsertSizes.MinSize,
-                  InsertSizes.MaxSize,
-                  InsertSizes.MeanSize,
-                  InsertSizes.StandardDeviation,
-                  InsertSizes.ReadPairs,
-                  InsertSizes.W10,
-                  InsertSizes.W20,
-                  InsertSizes.W30,
-                  InsertSizes.W40,
-                  InsertSizes.W50,
-                  InsertSizes.W60,
-                  InsertSizes.W70,
-                  InsertSizes.W80,
-                  InsertSizes.W90,
-                  InsertSizes.W99
-                  FROM Samples 
-                  INNER JOIN RUNS ON Samples.Sequencer==RUNS.Sequencer AND Samples.Run==RUNS.Number AND Samples.startDate==RUNS.Date 
-                  INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID
-                  INNER JOIN Lanes ON RUNS.UniqueID==Lanes.UniqueID
-                  INNER JOIN InsertSizes ON Samples.ID==InsertSizes.SampleID
-                  WHERE Lanes.ReadID NOT LIKE '%(I)'
-                  GROUP BY Samples.ID
-                  ORDER BY RUNS.Date")
-
-InsertSizesvI <- dbFetch(res)
-InsertSizesvI$Date <- as.Date(InsertSizesvI$Date)
-dbClearResult(res)
-rm(res)
-```
-```{r}
-library(ggplot2)
-library(reshape2)
-
-Interop <- InsertSizesvI[2:12]
-
-IS <- InsertSizesvI[13:29]
-
-corMat <- round(cor(x=Interop, y=IS, method = "spearman", use = "complete.obs"), 2)
+corMat <- round(cor(x=Interop.per.Sample, y=IS.per.Sample[1:7], method = "spearman", use = "complete.obs"), 2)
 
 
 
-ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+IS.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
   geom_tile(colour = "white") +
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
                        midpoint = 0, limit = c(-1,1), space = "Lab", 
                        name="Spearman\nCorrelation") + 
   theme_minimal()+ 
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-                                   size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("InsertSize Metrics") + ggtitle("Correlations between Interop Metrics vs Alignemnt Summary Metrics")
+                                   size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Insert Size Metrics") + theme(legend.position = "none") + ggtitle("Interop vs InsertSize metrics")
+
+corMat <- round(cor(x=Interop.per.Sample, y=IS.per.Sample[8:17], method = "spearman", use = "complete.obs"), 2)
+IS.widths.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + xlab("Interop Metrics") + theme(axis.title.y = element_blank())
+
+ is <- grid.arrange(IS.cor.heatmap, IS.widths.cor.heatmap, nrow=1)
+ 
+ ggsave(
+  "insertsizes.png",
+  plot = IS.cor.heatmap,
+  dpi = 300,
+  limitsize = T)
+```
+
+```{r}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+
+corMat <- round(cor(x=hs.per.Sample, y=Interop.per.Sample, method = "spearman", use = "complete.obs"), 2)
+
+
+
+hs.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + xlab("Hs Metrics") + ylab("Interop") + ggtitle("Interop vs hs metrics")
+
+hs.cor.heatmap
+ ggsave(
+  "hs.png",
+  plot = hs.cor.heatmap,
+  dpi = 300,
+  limitsize = T)
 ```
 ```{r}
-ggdensity(InsertSizesvI$MeanSize, 
-          main = "Density plot of mean insertsize per sample",
-          xlab = "Mean Insert Size")
+library(ggplot2)
+library(reshape2)
+library(dplyr)
 
+corMat <- round(cor(x=fl.per.Sample, y=Interop.per.Sample, method = "spearman", use = "complete.obs"), 2)
+
+
+
+fl.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + xlab("Hs Metrics") + ylab("Interop") + ggtitle("Correlations between Interop vs hs metrics")
+
+fl.cor.heatmap
 ```
 
 ```{r}
 library(DBI)
+library(knitr)
+library(ggplot2)
+
+## establish connection to sqlite db
 connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
 
 res <- dbSendQuery(connection, "
-                  SELECT
-                  RUNS.Sequencer || '_' || RUNS.Number || '_' || RUNS.Date  as UniqueID,
-                  AlignmentSummaryMetrics.PFmismatchRate as PFmismatchRate,
-                  AlignmentSummaryMetrics.PFHQErrorRate as PFHQErrorRate,
-                  AlignmentSummaryMetrics.PFindelRate as PFindelRate,
-                  AlignmentSummaryMetrics.MeanReadLenght as MeanReadLenght,
-                  AlignmentSummaryMetrics.ReadsAllignedInPairs as ReadsAllignedInPairs,
-                  AlignmentSummaryMetrics.StrandBalance as StrandBalance,
-                  AlignmentSummaryMetrics.ChimerasPercentage as ChimerasPercentage,
-                  AlignmentSummaryMetrics.AdapterPercentage as AdapterPercentage
-                  FROM Samples 
+                   Select 
+                   avg(QualityByCycle.Quality) as average_cycle_quality,
+                  avg(RunSummary.Yield) as Yield,
+                  avg(RunSummary.ProjectedYield) as ProjectedYield,
+                  avg(RunSummary.Intensity) as Intensity,
+                  avg(RunSummary.Q30) as RunQ30,
+                  avg(Lanes.Tiles) as Tiles,
+                  avg(Lanes.DensityMIN) as DensitySD,
+                  avg(Lanes.DensityMAX) as ClusterDensity,
+                  avg(Lanes.ClusterMIN) as ClusterSD,
+                  avg(Lanes.ClusterMAX) as ClustersPCT,
+                  avg(Lanes.LegacyPhasing) as LegacyPhasing,
+                  avg(Lanes.LegacyPrePhasing) as LegacyPrePhasing,
+                  avg(Lanes.PhasingSlope) as PhasingSlope,
+                  avg(Lanes.PrePhasingSlope) as PrePhasingSlope,
+                  avg(Lanes.PhasingOffset) as PhasingOffset,
+                  avg(Lanes.PrePhasingOffset) as PrePhasingOffset From Samples 
                   INNER JOIN RUNS ON Samples.Sequencer==RUNS.Sequencer AND Samples.Run==RUNS.Number AND Samples.startDate==RUNS.Date 
-                  INNER JOIN AlignmentSummaryMetrics ON Samples.ID==AlignmentSummaryMetrics.SampleID
-                  WHERE AlignmentSummaryMetrics.Category=='PAIR'
+                  INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID
+                  INNER JOIN Lanes ON RUNS.UniqueID==Lanes.UniqueID
+                  INNER JOIN QualityByCycle ON Samples.ID==QualityByCycle.SampleID
                   GROUP BY Samples.ID
                   ORDER BY RUNS.Date")
-
-ASMperRun <- dbFetch(res)
-ASMperRun$UniqueID <- as.factor(ASMperRun$UniqueID)
+Avg.cycle.Qual.per.Sample <- dbFetch(res)
 dbClearResult(res)
-rm(res)
-```
 
-```{r}
-library(FactoMineR)
+dbDisconnect(connection)
+rm(connection, res)
 
-res.mfa <- MFA(ASMperRun, 
-               group = c(1, 1, 1, 1, 1, 1, 1, 1, 1), 
-               type = c("n", "f", "f", "f", "c", "s", "f", "f", "f"),
-               graph = FALSE)
-```
-
-
-* PFmismatchRate Vs Intensity
-* PFmismatchRate Vs RunQ30
-* PFmismatchRate Vs ClusterDensity
-* PFmismatchRate Vs ClusterPCT
-* PFmismatchRate Vs Phasing
-* PFmismatchRate Vs PrePhasing
-
-* PFHQErrorRate Vs Intensity
-* PFHQErrorRate Vs RunQ30
-* PFHQErrorRate Vs ClusterDensity
-* PFHQErrorRate Vs ClusterPCT
-* PFHQErrorRate Vs PhasingOffset
-
-* IndelRate (Insertions and deletions per 100 aligned bases) vs Read Lengts/Yield
-* AdapterPercentage (The fraction of PF reads that are unaligned and match to a known adapter sequence right from the start of the read) vs Phasing offset
-
-The ErrorRate and Mismatch Rate seem to be identical in terms of correlation..
-
-```{r}
-library("ggpubr")
-library(gridExtra)
-p1 <- ggscatter(ASMvI, x = "PFHQErrorRate", y = "PFmismatchRate", 
-          add = "reg.line", conf.int = TRUE, 
-          cor.coef = TRUE, cor.method = "pearson",
-          xlab = "HQ Error Rate", ylab = "Mismatch Rate")
-
-p1
-```
-Infact the Error Rate and Mismatch Rate are identical, with a p-value of 2.2e-16.
-
-PF_MISMATCH_RATE: the rate of bases mismatching the refference for all bases aligned to the reference sequence
-PF_HQ_ERROR_RATE: The fraction of bases that mismatch the reference in PF HQ aligned reads
-
-I suspect that if all aligned bases passed the filter, you get the same values here. We can say the same for the total reads/reads passing filter. 
-
-
-```{r}
-res1 <- cor.test(ASMvI$RunQ30, ASMvI$PFmismatchRate, method = "spearman", exact = T)
-corTable <- c("RunQ30", "PFmismatchRate", res1$estimate,res1$p.value)
-names(corTable) <- c("Interop Statistic", "ASM statistic", "rho", "p-value")
-corTable <- as.data.frame(t(corTable))
-
-corTable[2,]  <- c("RunQ30", "PFmismatchRate", res1$estimate,res1$p.value)
-corTable
-```
-
-
-```{r}
-library(ggplot2)
-
-IS <- tNextSeq[39:55]
-IvIS <- round(cor(x=Interop, y=IS, use = "complete.obs"), 2)
-
-ggplot(data = melt(IvIS, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
-  geom_tile(colour = "white") +
-  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
-   midpoint = 0, limit = c(-1,1), space = "Lab", 
-   name="Pearson\nCorrelation") + 
-  theme_minimal()+ 
- theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-    size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Insert Size Metrics") + ggtitle("Correlations between Interop Metrics vs Insert size Metrics")
-
-rm(IS, IvIS)
 ```
 ```{r}
 library(ggplot2)
+library(reshape2)
+library(dplyr)
 
-FL <- tNextSeq[95:110]
-IvFL <- round(cor(x=Interop, y=FL, use = "complete.obs"), 2)
+corMat <- round(cor(y=Avg.cycle.Qual.per.Sample[1], x=Avg.cycle.Qual.per.Sample[2:15], method = "spearman", use = "complete.obs"), 2)
 
-ggplot(data = melt(IvFL, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+
+
+Q.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
   geom_tile(colour = "white") +
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
-   midpoint = 0, limit = c(-1,1), space = "Lab", 
-   name="Pearson\nCorrelation") + 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
   theme_minimal()+ 
- theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-    size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Flagstat Metrics") + ggtitle("Interop Metrics vs Flagstat metrics")
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + xlab("Hs Metrics") + ylab("Interop") + ggtitle("Correlations between Interop vs hs metrics")
 
-rm(IvFL, FL)
-```
-```{r}
-library(ggplot2)
-Hs <- tNextSeq[56:94]
-IvHS <- round(cor(x=Interop, y=Hs, use = "complete.obs"), 2)
-
-ggplot(data = melt(IvHS, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
-  geom_tile(colour = "white") +
-  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
-   midpoint = 0, limit = c(-1,1), space = "Lab", 
-   name="Pearson\nCorrelation") + 
-  theme_minimal()+ 
- theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-    size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("hs Metrics") + ggtitle("Interop Metrics vs hs metrics")
-
-rm(Hs, IvHS, Interop)
+Q.cor.heatmap
 ```
 
-
-
-# MFA
-119707572
-```{r}
-head(tNextSeq)
-mfav <- subset(tNextSeq, select = -c(TotalReads, ReadsAllignedInPairs, ReadPairs, PFuniqueReads, PFUQaligned, PFBasesAligned, HsLibrarySize, TotalPass,SecondaryPass,SupplementaryPass,DuplicatePass,MappedPass,PairedSeqPass,Read1Pass,PoperPairPass,SelfAndMatePass,SingletonsPass,MateOnDiffChromosomeLowPass,MateOnDiffChromosomeHighPass, PFreads, PFaligned, PFalignedBases, ProjectedYield, Read2Pass))
-
-head(mfav)
-```
-
-### Collumn groups
-* group 1: catigorical origin / determining factors, weekday, Sequencer and Kit. Size 3
-* group 2: Interop Metrics: Yield, Intensity, RunQ30, Tiles, DensityMin, DensityMAX, ClusterMIN, ClusterMAX, LegacyPhasing, LegacyPrePhasing, PhasingSlope, PrePhasingSlope, PhasingOffset, PrePhasingOffset, Reads, ReadsPF, LaneQ30, IntensityMIN, IntensityMAX. Size 19
-* Group 3: AlignmentSummaryMetrics:PFHQmedianMismatchesm PFmismatchRate, PFHQErrorRate, PFindelRate, MeanReadLength, ReadsAllignedInPairs, BadCycles, StrandBalance, ChimerasPercentage, AdapterPercentage. Size 10
-* Group 4: InsertSizes, MedianSize, MedianAbsoluteDeviation, MinSize, MaxSize, MeanSize, StandardDeviation, W10, W20, W30, W40, W50, W60, W70, W80, W90, W99. Size 16
-* Group 5: hsMetrics: BaitTerritory, TargetTerritory, BaitDesignEfficentcy, SelectedBasesPercentage, OnBaitVSselected, MeanBaitCoverage, MeanTargetCoverage, MedianTargetCoverage, PercentageUsableBasesOnBait, PercentageUsableBasesOnTarget, FoldEnrichment, ZeroCVGtargetsPercentage, ExcDupePct,ExcMapQPct,ExcBaseQPct,ExcOverlapPct,ExcOffTargetPct,TargetBasesPct1X,TargetBasesPct2X,TargetBasesPct10XTargetBasesPct20X,TargetBasesPct30X,TargetBasesPct40X,TargetBasesPct50X,TargetBasesPct100X,HsPenalty10X,HsPenalty20X,HsPenalty30X,HsPenalty40X,HsPenalty50X,HsPenalty100X,AtDropout,GCDropout,HetSNPsensitivity,HetSNPQ. Size 39
-* Group 6: Flagstat metrics: TotalPass,SecondaryPass,SupplementaryPass,DuplicatePass,MappedPass,MappedPercentage,PairedSeqPass,Read1Pass,<int>PoperPairPass,ProperPairPCT,SelfAndMatePass,SingletonsPass,SingletonsPercentage.MateOnDiffChromosomeLowPass,MateOnDiffChromosomeHighPass. Size 16
 
 ```{r}
-library(FactoMineR)
-res.MFA <- MFA(mfav, 
-    group = c(3, 19, 10, 16, 35, 3), type = c("n", "s", "s", "s", "s", "s"), 
-    name.group = c("circumstances", "Interop", "ASM", "InsertSizes", "hs", "Flagstat"),
-    graph = FALSE
-    )
+library(igraph)
+num <- subset(Metrics.per.Sample, select = -c(Weekday, Sequencer, Kit, BadCycles, BaitDesignEfficientcy, SupplementaryPass))
+corMat <- cor(num, method = "spearman", use = "complete.obs")
+corMat[corMat < 0.995] <- 0
+network <- graph_from_adjacency_matrix(corMat, weighted=NULL, mode="undirected", diag=F)
+plot(network)
 ```
-
-```{r}
-library("factoextra")
-eig.val <- get_eigenvalue(res.MFA)
-head(eig.val)
-```
-
-```{r}
-fviz_screeplot(res.MFA)
-```
-
-```{r}
-fviz_mfa_var(res.MFA, "group")
-```
-
-```{r}
-fviz_mfa_var(res.MFA, "quanti.var", palette = "jco", 
-             col.var.sup = "violet", repel = TRUE)
-```
-
 
 ```{r}
 library(apcluster)
+corMat <- round(cor(y=Interop.per.Sample, x=dependend, method = "spearman", use = "complete.obs"), 2)
 
-x <- as.matrix(subset(mfav, select = -c(Weekday, Sequencer, Kit)))
+apclust.metrics <- apcluster(negDistMat(r = 2), corMat)
 
-# cluster genes and write results
-# clustering gebeurd dus standaar op de rijen (genes) maar met t() kan je transponeren
-Clust <- apcluster(negDistMat(r=2), x, details=TRUE)
-Clust
-
-cat("affinity propogation optimal number of clusters:", length(Clust@clusters), "\n")
-sink("qualityMetrics_appclust.csv")
-Clust
-sink()
+apclust.metrics
+cat("affinity propogation optimal number of clusters:", length(apclust.metrics@clusters), "\n")
 ```
 
-```{r}
-saveRDS(Clust, file = "appclust.rds")
-```
-
-```{r}
-y <- subset(x, select = -c(Yield, Intensity, RunQ30, Tiles, DensityMIN, DensityMAX, ClusterMIN, ClusterMAX, LegacyPhasing, LegacyPrePhasing, PhasingSlope, PrePhasingSlope, PhasingOffset, PrePhasingOffset, Reads, ReadsPF, LaneQ30, IntensityMIN, IntensityMAX))
-# cluster genes and write results
-# clustering gebeurd dus standaar op de rijen (genes) maar met t() kan je transponeren
-Clust2 <- apcluster(negDistMat(r=2), y, details=TRUE)
-Clust2
-
-cat("affinity propogation optimal number of clusters:", length(Clust@clusters), "\n")
-sink("qualityMetrics_appclust_nonInterop.csv")
-Clust2
-sink()
-```
-
-```{r}
-library(FactoMineR)
-library(factoextra)
-
-res.pca <- PCA(y, graph = FALSE )
-```
-```{r}
-get_eigenvalue(res.pca)
-```
-```{r}
-fviz_pca_ind(res.pca,
-             geom.ind = "point", # show points only (nbut not "text")
-             addEllipses = FALSE, # Concentration ellipses
-             legend.title = "Groups"
-             )
-```
 
