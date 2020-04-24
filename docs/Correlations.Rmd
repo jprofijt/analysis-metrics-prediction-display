@@ -118,6 +118,7 @@ rownames(Metrics.per.Sample.pl) <-Metrics.per.Sample[,1]
 Metrics.per.Sample <- Metrics.per.Sample.pl
 rm(Metrics.per.Sample.pl)
 
+samples <- dbReadTable(connection, "Samples")
 dbDisconnect(connection)
 rm(connection, res)
 
@@ -133,6 +134,7 @@ ASM.per.Sample <- Metrics.per.Sample[19:28]
 IS.per.Sample <- Metrics.per.Sample[29:45]
 hs.per.Sample <- Metrics.per.Sample[46:63]
 fl.per.Sample <- Metrics.per.Sample[64:79]
+head(samples)
 ```
 
 ```{r}
@@ -292,6 +294,8 @@ hs.cor.heatmap
   dpi = 300,
   limitsize = T)
 ```
+ 
+
 ```{r}
 library(ggplot2)
 library(reshape2)
@@ -347,11 +351,46 @@ res <- dbSendQuery(connection, "
                   ORDER BY RUNS.Date")
 Avg.cycle.Qual.per.Sample <- dbFetch(res)
 dbClearResult(res)
-
-dbDisconnect(connection)
-rm(connection, res)
-
+rm(res)
 ```
+
+
+
+* PFmismatchRate Vs Intensity
+* PFmismatchRate Vs RunQ30
+* PFmismatchRate Vs ClusterDensity
+* PFmismatchRate Vs ClusterPCT
+* PFmismatchRate Vs Phasing
+* PFmismatchRate Vs PrePhasing
+
+* PFHQErrorRate Vs Intensity
+* PFHQErrorRate Vs RunQ30
+* PFHQErrorRate Vs ClusterDensity
+* PFHQErrorRate Vs ClusterPCT
+* PFHQErrorRate Vs PhasingOffset
+
+* IndelRate (Insertions and deletions per 100 aligned bases) vs Read Lengts/Yield
+* AdapterPercentage (The fraction of PF reads that are unaligned and match to a known adapter sequence right from the start of the read) vs Phasing offset
+
+The ErrorRate and Mismatch Rate seem to be identical in terms of correlation..
+
+```{r}
+library("ggpubr")
+library(gridExtra)
+p1 <- ggscatter(Metrics.per.Sample, x = "PFHQErrorRate", y = "PFmismatchRate", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "HQ Error Rate", ylab = "Mismatch Rate")
+
+p1
+```
+Infact the Error Rate and Mismatch Rate are identical, with a p-value of 2.2e-16.
+
+PF_MISMATCH_RATE: the rate of bases mismatching the refference for all bases aligned to the reference sequence
+PF_HQ_ERROR_RATE: The fraction of bases that mismatch the reference in PF HQ aligned reads
+
+I suspect that if all aligned bases passed the filter, you get the same values here. We can say the same for the total reads/reads passing filter. 
+
 ```{r}
 library(ggplot2)
 library(reshape2)
@@ -379,7 +418,7 @@ library(igraph)
 num <- subset(Metrics.per.Sample, select = -c(Weekday, Sequencer, Kit, BadCycles, BaitDesignEfficientcy, SupplementaryPass))
 corMat <- cor(num, method = "spearman", use = "complete.obs")
 corMat[corMat < 0.995] <- 0
-network <- graph_from_adjacency_matrix(corMat, weighted=NULL, mode="undirected", diag=F)
+network <- graph_from_adjacency_matrix(corMat, weighted=T, mode="undirected", diag=F)
 plot(network)
 ```
 
