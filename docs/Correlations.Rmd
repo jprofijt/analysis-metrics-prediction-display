@@ -134,7 +134,19 @@ ASM.per.Sample <- Metrics.per.Sample[19:28]
 IS.per.Sample <- Metrics.per.Sample[29:45]
 hs.per.Sample <- Metrics.per.Sample[46:63]
 fl.per.Sample <- Metrics.per.Sample[64:79]
+samples$DNA_numbers <- as.factor(apply(samples, 1, function(x) {
+  ids <- unlist(strsplit(x[1], "_"))
+  ids[3]
+  }))
+
+samples$DesignNumber <- as.factor(apply(samples, 1, function(x) {
+  ids <- unlist(strsplit(x[1], "_"))
+  ids[6]
+  }))
+
+samples <- subset(samples, ((grepl("DNA\\d+", DNA_numbers) )))
 head(samples)
+levels(samples$UniqueKits)
 ```
 
 ```{r}
@@ -425,6 +437,15 @@ plot(network)
 ```{r}
 library(apcluster)
 corMat <- round(cor(y=Interop.per.Sample, x=dependend, method = "spearman", use = "complete.obs"), 2)
+
+apclust.metrics <- apcluster(negDistMat(r = 2), corMat)
+
+apclust.metrics
+cat("affinity propogation optimal number of clusters:", length(apclust.metrics@clusters), "\n")
+```
+```{r}
+library(apcluster)
+corMat <- round(cor(y=dependend, x=Interop.per.Sample, method = "spearman", use = "complete.obs"), 2)
 
 apclust.metrics <- apcluster(negDistMat(r = 2), corMat)
 
