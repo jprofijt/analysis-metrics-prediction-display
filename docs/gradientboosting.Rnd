@@ -1,0 +1,297 @@
+---
+title: "GradientClassificationBoosting"
+author: "Jouke Profijt"
+date: "29-4-2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = 'C:/Users/Jouke/Documents/analysis-metrics-prediction-display' )
+```
+
+```{r echo=FALSE}
+library(DBI)
+library(knitr)
+library(ggplot2)
+library(stringr)
+
+## establish connection to sqlite db
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+samples <- dbReadTable(connection, "Samples")
+dbDisconnect(connection)
+samples$DNA_numbers <- as.factor(apply(samples, 1, function(x) {
+  ids <- unlist(strsplit(x[1], "_"))
+  ids[3]
+  }))
+
+samples$DesignNumber <- as.factor(apply(samples, 1, function(x) {
+  ids <- unlist(strsplit(x[1], "_"))
+  DN <- ids[6]
+  if (is.null(DN) | is.na(DN)) {
+    return(x["capturingKit"])
+  } else {
+    return(DN)
+  }
+  }))
+
+samples <- subset(samples, ((grepl("DNA\\d+", DNA_numbers) )))
+head(samples)
+levels(samples$UniqueKits)
+
+check_flowcell <- function(row) {
+  x <- row["flowcell"]
+  if (str_detect(x, regex("C[A-Z,0-9]{4}ANXX$"))) { return("HiSeq 1500")}
+  if (str_detect(x, regex("C[A-Z,0-9]{4}ACXX$"))) { return("HiSeq 1000")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}ADXX$"))) { return("HiSeq 1500")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BCXX$"))) { return("HiSeq 1500")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BCXY$"))) { return("HiSeq 1500")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BBXX$"))) { return("HiSeq 4000")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BBXY$"))) { return("HiSeq 4000")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}CCXX$"))) { return("HiSeq X")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}CCXY$"))) { return("HiSeq X")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}ALXX$"))) { return("HiSeq X")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BGXX$"))) { return("NextSeq")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BGXY$"))) { return("NextSeq")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BGX2$"))) { return("NextSeq")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}AFXX$"))) { return("NextSeq")}
+  if (str_detect(x, regex("A[A-Z,0-9]{4}$"))) { return("MiSeq")}
+  if (str_detect(x, regex("B[A-Z,0-9]{4}$"))) { return("MiSeq")}
+  if (str_detect(x, regex("D[A-Z,0-9]{4}$"))) { return("MiSeq")}
+  if (str_detect(x, regex("G[A-Z,0-9]{4}$"))) { return("MiSeq")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}DMXX$"))) { return("NovaSeq")}
+  return(row["Sequencer"]) # if no instrument type can be found, return the sequencer id to keep it destinguiasable
+
+}
+instruments <- function(row) {
+  x <- row["Sequencer"]
+  flowcell <- row["Flowcell"]
+  if (str_detect(x, regex("HWI-M[0-9]{4}$"))) {
+   return("MiSeq")
+ }
+  if (str_detect(x, regex("HWUSI"))) {
+   return("Genome Analyzer IIx")
+  }
+  if (str_detect(x, regex("M[0-9]{5}$"))) {
+   return("MiSeq")
+  }
+  if (str_detect(x, regex("HWI-C[0-9]{5}$"))) {
+   return("HiSeq 1500")
+  }
+  if (str_detect(x, regex("C[0-9]{5}$"))) {
+   return("HiSeq 1500")
+  }
+  if (str_detect(x, regex("HWI-D[0-9]{5}$"))) {
+   return("HiSeq 2500")
+  }
+  if (str_detect(x, regex("D[0-9]{5}$"))) {
+   return("HiSeq 2500")
+  }
+  if (str_detect(x, regex("J[0-9]{5}$"))) {
+   return("HiSeq 3000")
+  }
+  if (str_detect(x, regex("K[0-9]{5}$"))) {
+    return(check_flowcell(row))
+  }
+  if (str_detect(x, regex("E[0-9]{5}$"))) {
+   return("HiSeq X")
+  }
+  if (str_detect(x, regex("NB[0-9]{6}$"))) {
+   return("NextSeq")
+  }
+  if (str_detect(x, regex("NS[0-9]{6}$"))) {
+   return("NextSeq")
+  }
+  if (str_detect(x, regex("MN[0-9]{5}$"))) {
+   return("MiniSeq")
+  }
+  return(check_flowcell(row))
+}
+
+samples$Instrument <- apply(samples, 1, instruments)
+samples$startDate <- as.Date(samples$startDate)
+samples <- samples[order(samples$startDate),]
+rm(connection)
+head(samples)
+```
+
+```{r}
+l <- list()
+v <- c()
+i <- 1
+for (DNA_number in samples$DNA_numbers) {
+  unique_combo <- paste0(DNA_number, samples$DesignNumber[i])
+  if (is.null(l[unique_combo][[1]])) {
+    l[unique_combo] <- i
+    v <- append(v, "Not Reinserted")
+  } else {
+    v[l[unique_combo][[1]]] <- "Reinserted"
+    v <- append(v, "Not Reinserted")
+    l[unique_combo] <- i
+  }
+  i <- i + 1
+}
+samples$Used <- as.factor(v)
+rm(v, l)
+```
+```{r}
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+dbListTables(connection)
+dbDisconnect(connection)
+```
+
+```{r}
+library(dplyr)
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+ASM <- dbReadTable(connection, "AlignmentSummaryMetrics")
+ASM <- ASM[ASM$Category == "PAIR",]
+hs <- dbReadTable(connection, "hsMetrics")
+InsertSizes <- dbReadTable(connection, "InsertSizes")
+RUNS <- dbReadTable(connection, "RUNS")
+RunSummary <- dbReadTable(connection, "RunSummary")
+dbDisconnect(connection)
+RunSummary <- aggregate(RunSummary[, c(2:4, 6:7)], list(RunSummary$UniqueID), sum)
+
+RunMetrics <- left_join(RUNS, RunSummary, by = c("UniqueID" = "Group.1"))
+RunMetrics$Date <- as.Date(RunMetrics$Date)
+data <- left_join(RunMetrics, samples, by = c("Sequencer"= "Sequencer", "Number" = "run", "Date" = "startDate"))
+data <- left_join(data, ASM, by = c("ID" = "SampleID"))
+data <- left_join(data, hs, by = c("ID" = "SampleID", "RunID.y" = "RunID"))
+data <- left_join(data, InsertSizes, by = c("ID" = "SampleID", "RunID.y" = "RunID"))
+data$Used <- as.factor(data$Used)
+data2 <- na.omit(data)
+Numeric_data <- subset(data2, select = -c(UniqueID,RunID.x, Number, Flowcell, Sequencer, Date, flowcell, project, capturingKit, DNA_numbers, DesignNumber,Instrument, RunID.y, Category, PairOrientation, ID, BaitSet, Used))
+Numeric_data <- lapply(Numeric_data, as.numeric)
+Numeric_data$Used <- data2$Used
+Numeric_data$kit <- data2$DesignNumber
+Numeric_data <- as.data.frame(Numeric_data)
+head(Numeric_data)
+```
+
+```{r}
+library(tidyverse)
+library(caret)
+library(xgboost)
+
+Numeric_data_u <- subset(Numeric_data, select = -c(kit))
+
+
+training.data <- Numeric_data_u$Used %>% 
+  createDataPartition(p = 0.8, list = FALSE)
+set.seed(123)
+train.data  <- Numeric_data_u[training.data, ]
+test.data <- Numeric_data_u[-training.data, ]
+```
+
+```{r}
+# Fit the model on the training set
+set.seed(123)
+model <- train(
+  Used ~., data = train.data, method = "xgbTree",
+  trControl = trainControl("cv", number = 10)
+  )
+# Best tuning parameter
+model$bestTune
+```
+
+```{r}
+predicted.classes <- model %>% predict(test.data)
+```
+```{r}
+mean(predicted.classes == test.data$Used)
+```
+
+```{r}
+varImp(model)
+```
+```{r}
+library(caret)
+ 
+preproc1 <- preProcess(subset(Numeric_data, select = -c(Used, kit)), method=c("center", "scale"))
+ 
+norm1 <- predict(preproc1, subset(Numeric_data, select = -c(Used, kit)))
+summary(subset(Numeric_data, select = c(PFnoise, BadCycles, GenomeSize, BaitDesignEfficientcy, ExcOverlapPct, AtDropout, GCDropout)))
+
+# remove zero variance variables
+Numeric_data_0 <- subset(Numeric_data, select = -c(PFnoise, BadCycles, GenomeSize, BaitDesignEfficientcy, ExcOverlapPct, AtDropout, GCDropout))
+```
+
+```{r}
+library(caret)
+ 
+preproc1 <- preProcess(subset(Numeric_data_0, select = -c(Used, kit)), method=c("center", "scale"))
+ 
+norm1 <- predict(preproc1, subset(Numeric_data_0, select = -c(Used, kit)))
+```
+
+
+```{r}
+library(tidyverse)
+library(caret)
+library(xgboost)
+normU <- norm1
+normU$Used <- Numeric_data_0$Used
+
+
+training.data2 <- normU$Used %>% 
+  createDataPartition(p = 0.8, list = FALSE)
+set.seed(123)
+train.data2  <- normU[training.data2, ]
+test.data2 <- normU[-training.data2, ]
+```
+
+```{r}
+# Fit the model on the training set
+set.seed(123)
+model2 <- train(
+  Used ~., data = train.data2, method = "xgbTree",
+  trControl = trainControl("cv", number = 10)
+  )
+# Best tuning parameter
+model2$bestTune
+```
+
+```{r}
+predicted.classes <- model2 %>% predict(test.data2)
+mean(predicted.classes == test.data2$Used)
+```
+
+```{r}
+varImp(model2)
+```
+
+```{r}
+library(tidyverse)
+library(caret)
+library(xgboost)
+normKits <- norm1
+normKits$Kit <- droplevels(Numeric_data_0$kit)
+levels(Numeric_data_0$kit)
+
+training.data3 <- normKits$Kit %>% 
+  createDataPartition(p = 0.8, list = FALSE)
+set.seed(123)
+train.data3  <- normKits[training.data3, ]
+test.data3 <- normKits[-training.data3, ]
+```
+
+```{r}
+# Fit the model on the training set
+set.seed(123)
+modelKits <- train(
+  Kit ~., data = train.data3, method = "xgbTree",
+  trControl = trainControl("cv", number = 10)
+  )
+# Best tuning parameter
+modelKits$bestTune
+```
+
+```{r}
+predicted.classes <- modelKits %>% predict(test.data3)
+mean(predicted.classes == test.data3$Kit)
+```
+
+```{r}
+varImp(modelKits)
+```
