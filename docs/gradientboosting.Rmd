@@ -160,9 +160,54 @@ data <- left_join(data, ASM, by = c("ID" = "SampleID"))
 data <- left_join(data, hs, by = c("ID" = "SampleID", "RunID.y" = "RunID"))
 data <- left_join(data, InsertSizes, by = c("ID" = "SampleID", "RunID.y" = "RunID"))
 data$Used <- as.factor(data$Used)
+str(data)
+```
+
+```{r}
 data2 <- na.omit(data)
 Numeric_data <- subset(data2, select = -c(UniqueID,RunID.x, Number, Flowcell, Sequencer, Date, flowcell, project, capturingKit, DNA_numbers, DesignNumber,Instrument, RunID.y, Category, PairOrientation, ID, BaitSet, Used))
-Numeric_data <- lapply(Numeric_data, as.numeric)
+Numeric_data <- as.data.frame(apply(Numeric_data, 2, as.numeric))
+variance.data <- apply(Numeric_data, 2, var)
+variance.data[variance.data == 0]
+```
+
+```{r}
+Numeric_data <- subset(Numeric_data, select = -c(PFnoise, PFHQaligned, PFHQalignedQ20Bases, BadCycles, GenomeSize, BaitDesignEfficientcy,  PFBasesAligned, PFUQBasesAligned, OnBaitBases, NearBaitBases, OffBaitBases, OnTargetBases, ExcOverlapPct, AtDropout, GCDropout)) # Remove values with 0 variance, aka not informative
+```
+
+```{r}
+library(ggplot2)
+Not.reinserted <- sum(data2$Used == "Not Reinserted")
+Reinserted <- sum(data2$Used == "Reinserted")
+
+df <- as.data.frame(c("Not Reinserted", "Reinserted"))
+colnames(df) <- c("action")
+df$num <- c(Not.reinserted, Reinserted)
+
+ggplot(data = data2, aes(x=Used)) + geom_bar()
+```
+
+```{r}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+
+corMat <- round(cor(Numeric_data, method = "spearman", use = "complete.obs"), 2)
+
+
+
+cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ theme(legend.position = "none") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + ggtitle("Correlations between variables")
+cor.heatmap
+```
+
+```{r}
 Numeric_data$Used <- data2$Used
 Numeric_data$kit <- data2$DesignNumber
 Numeric_data <- as.data.frame(Numeric_data)
@@ -200,21 +245,13 @@ predicted.classes <- model %>% predict(test.data)
 ```
 ```{r}
 mean(predicted.classes == test.data$Used)
+test.data$predicted <- predicted.classes
+
+table(test.data$Used, test.data$predicted)
 ```
 
 ```{r}
 varImp(model)
-```
-```{r}
-library(caret)
- 
-preproc1 <- preProcess(subset(Numeric_data, select = -c(Used, kit)), method=c("center", "scale"))
- 
-norm1 <- predict(preproc1, subset(Numeric_data, select = -c(Used, kit)))
-summary(subset(Numeric_data, select = c(PFnoise, BadCycles, GenomeSize, BaitDesignEfficientcy, ExcOverlapPct, AtDropout, GCDropout)))
-
-# remove zero variance variables
-Numeric_data_0 <- subset(Numeric_data, select = -c(PFnoise, BadCycles, GenomeSize, BaitDesignEfficientcy, ExcOverlapPct, AtDropout, GCDropout))
 ```
 
 ```{r}
@@ -231,7 +268,7 @@ library(tidyverse)
 library(caret)
 library(xgboost)
 normU <- norm1
-normU$Used <- Numeric_data_0$Used
+normU$Used <- Numeric_data$Used
 
 
 training.data2 <- normU$Used %>% 
@@ -259,6 +296,12 @@ mean(predicted.classes == test.data2$Used)
 
 ```{r}
 varImp(model2)
+```
+
+Chimeras Percentage, Interesting. Chimeras can be seen as contamination of samples/reads. As this metric seems to contri
+
+```{r}
+summary(Numeric_data$ChimerasPercentage)
 ```
 
 ```{r}
@@ -294,4 +337,87 @@ mean(predicted.classes == test.data3$Kit)
 
 ```{r}
 varImp(modelKits)
+```
+
+```{r}
+library(tidyverse)
+library(caret)
+library(xgboost)
+# Split the data into training and test set
+coverage_prediction_data <- subset(Numeric_data, select = -c(TargetBasesPct10X, TargetBasesPct30X, TargetBasesPct40X, TargetBasesPct50X, TargetBasesPct100X, TargetBasesPct1X, TargetBasesPct2X, MeanTargetCoverage, MedianTargetCoverage))
+set.seed(123)
+training.samples4 <- Numeric_data$TargetBasesPct20X %>%
+  createDataPartition(p = 0.8, list = FALSE)
+train.data4  <- Numeric_data[training.samples4, ]
+test.data4 <- Numeric_data[-training.samples4, ]
+```
+
+```{r}
+# Fit the model on the training set
+set.seed(123)
+model4 <- train(
+  TargetBasesPct20X ~., data = train.data4, method = "xgbTree",
+  trControl = trainControl("cv", number = 10)
+  )
+# Best tuning parameter mtry
+model4$bestTune
+# Make predictions on the test data
+predictions4 <- model4 %>% predict(test.data4)
+head(predictions4)
+# Compute the average prediction error RMSE
+RMSE(predictions4, test.data4$TargetBasesPct20X)
+```
+
+```{r}
+varImp(model4)
+```
+
+```{r}
+training.samples5 <- coverage_prediction_data$TargetBasesPct20X %>%
+  createDataPartition(p = 0.8, list = FALSE)
+train.data5  <- coverage_prediction_data[training.samples5, ]
+test.data5 <- coverage_prediction_data[-training.samples5, ]
+```
+
+```{r}
+# Fit the model on the training set
+set.seed(123)
+model5 <- train(
+  TargetBasesPct20X ~., data = train.data5, method = "xgbTree",
+  trControl = trainControl("cv", number = 10)
+  )
+# Best tuning parameter mtry
+model5$bestTune
+# Make predictions on the test data
+predictions5 <- model5 %>% predict(test.data5)
+head(predictions5)
+# Compute the average prediction error RMSE
+RMSE(predictions5, test.data5$TargetBasesPct20X)
+varImp(model5)
+max()
+```
+
+```{r}
+q30_data <- subset(Numeric_data, select = -c(W99, W90, W80, W70, W60, W50, W40, W30, W20, W10))
+training.samples6 <- q30_data$Q30 %>%
+  createDataPartition(p = 0.8, list = FALSE)
+train.data6  <- q30_data[training.samples6, ]
+test.data6 <- q30_data[-training.samples6, ]
+```
+
+```{r}
+# Fit the model on the training set
+set.seed(123)
+model6 <- train(
+  Q30 ~., data = train.data6, method = "xgbTree",
+  trControl = trainControl("cv", number = 10)
+  )
+# Best tuning parameter mtry
+model6$bestTune
+# Make predictions on the test data
+predictions6 <- model6 %>% predict(test.data6)
+head(predictions6)
+# Compute the average prediction error RMSE
+RMSE(predictions6, test.data6$Q30)
+varImp(model6)
 ```
