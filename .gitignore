@@ -19,3 +19,11 @@ src/scripts/python/build/
 *.db
 *venv*
 .vscode
+.DS_Store
+asm.png
+hs.png
+insertsizes.png
+q20line.png
+*.log
+*.tex
+*.pdf

@@ -7,7 +7,7 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-knitr::opts_knit$set(root.dir = 'C:/Users/Jouke/Documents/analysis-metrics-prediction-display' )
+knitr::opts_knit$set(root.dir = '/Users/jouke/Projects/Analysis metrics/' )
 ```
 
 ```{r echo=FALSE}
@@ -16,6 +16,8 @@ library(knitr)
 library(ggplot2)
 library(stringr)
 
+prepData <- read.csv("data/GokuVsVegeta/QXTData.csv", sep = "\t", header = F)
+colnames(prepData) <- c("SampleName", "Concentration", "A260_280", "A260_230", "ProcessStepId", "ExitDate", "ContainerPosition", "RequestId", "BatchId", "FinishedBy", "isFirstPriority", "FieldName", "DataType", "Value")
 ## establish connection to sqlite db
 connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
 samples <- dbReadTable(connection, "Samples")
@@ -150,8 +152,10 @@ hs <- dbReadTable(connection, "hsMetrics")
 InsertSizes <- dbReadTable(connection, "InsertSizes")
 RUNS <- dbReadTable(connection, "RUNS")
 RunSummary <- dbReadTable(connection, "RunSummary")
+FL <- dbReadTable(connection, "FlagstatMetrics")
 dbDisconnect(connection)
 RunSummary <- aggregate(RunSummary[, c(2:4, 6:7)], list(RunSummary$UniqueID), sum)
+
 
 RunMetrics <- left_join(RUNS, RunSummary, by = c("UniqueID" = "Group.1"))
 RunMetrics$Date <- as.Date(RunMetrics$Date)
@@ -159,20 +163,22 @@ data <- left_join(RunMetrics, samples, by = c("Sequencer"= "Sequencer", "Number"
 data <- left_join(data, ASM, by = c("ID" = "SampleID"))
 data <- left_join(data, hs, by = c("ID" = "SampleID", "RunID.y" = "RunID"))
 data <- left_join(data, InsertSizes, by = c("ID" = "SampleID", "RunID.y" = "RunID"))
+data <- left_join(data, FL, by = c("ID" = "SampleID", "RunID.y" = "RunID"))
 data$Used <- as.factor(data$Used)
 str(data)
 ```
 
 ```{r}
+data$Instrument <- as.factor(data$Instrument)
 data2 <- na.omit(data)
-Numeric_data <- subset(data2, select = -c(UniqueID,RunID.x, Number, Flowcell, Sequencer, Date, flowcell, project, capturingKit, DNA_numbers, DesignNumber,Instrument, RunID.y, Category, PairOrientation, ID, BaitSet, Used))
+Numeric_data <- subset(data2, select = -c(UniqueID,RunID.x, Number, Flowcell, Sequencer, Date, flowcell, project, capturingKit, DNA_numbers, DesignNumber, RunID.y, Category, PairOrientation, ID, BaitSet, Used))
 Numeric_data <- as.data.frame(apply(Numeric_data, 2, as.numeric))
 variance.data <- apply(Numeric_data, 2, var)
 variance.data[variance.data == 0]
 ```
 
 ```{r}
-Numeric_data <- subset(Numeric_data, select = -c(PFnoise, PFHQaligned, PFHQalignedQ20Bases, BadCycles, GenomeSize, BaitDesignEfficientcy,  PFBasesAligned, PFUQBasesAligned, OnBaitBases, NearBaitBases, OffBaitBases, OnTargetBases, ExcOverlapPct, AtDropout, GCDropout)) # Remove values with 0 variance, aka not informative
+Numeric_data <- subset(Numeric_data, select = -c(PFnoise, PFHQaligned, PFHQalignedQ20Bases, BadCycles, GenomeSize, BaitDesignEfficientcy,  PFBasesAligned, PFUQBasesAligned, OnBaitBases, NearBaitBases, OffBaitBases, OnTargetBases, ExcOverlapPct, AtDropout, GCDropout, TotalFail, SecondaryFail, SupplementaryPass, SupplementaryFail, DuplicateFail, MappedFail, PairedSeqFail, Read1Fail, Read2Fail, ProperPairFail, SelfAndMateFail, SingletonsFail, MateOnDiffChromosomeLowFail, MateOnDiffChromosomeHighFail)) # Remove values with 0 variance, aka not informative
 ```
 
 ```{r}
@@ -192,7 +198,98 @@ library(ggplot2)
 library(reshape2)
 library(dplyr)
 
-corMat <- round(cor(Numeric_data, method = "spearman", use = "complete.obs"), 2)
+s <- subset(Numeric_data, select = c(AdapterPercentage,MedianAbsoluteDeviation, MinSize, StandardDeviation, W10, W20, W30, W40, W50, W60, W70, W80, W90, W99))
+corMat <- round(cor(y=Numeric_data, x=s, method = "spearman", use = "complete.obs"), 2)
+
+
+
+cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ theme(legend.position = "none") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + ggtitle("Correlations between variables")
+cor.heatmap
+```
+```{r}
+
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+
+s <- subset(Numeric_data, select = c(MeanReadLenght, ReadsAllignedInPairs, MaxSize, ReadPairs, TotalReads.x, PFreads.x, PFaligned, PFuniqueReads, PFHQalignedBases, PFalignedBases, PFmismatchRate, 
+      PercentageUsableBasesOnBait, PercentageUsableBasesOnTarget, TotalPass, SecondaryPass, DuplicatePass, MappedPass, 
+      PairedSeqPass, Read1Pass, Read2Pass, PoperPairPass, SelfAndMatePass, SingletonsPass, SingletonsPercentage, MateOnDiffChromosomeLowPass, MateOnDiffChromosomeHighPass))
+corMat <- round(cor(y=Numeric_data, x=s, method = "spearman", use = "complete.obs"), 2)
+
+
+
+cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ theme(legend.position = "none") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + ggtitle("Correlations between variables")
+cor.heatmap
+```
+
+These metrics are related to the total number of reads.
+
+```{r}
+
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+
+s <- subset(Numeric_data, select = c(PFmismatchRate, PFHQErrorRate))
+corMat <- round(cor(y=Numeric_data, x=s, method = "spearman", use = "complete.obs"), 2)
+
+
+
+cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ theme(legend.position = "none") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + ggtitle("Correlations between variables")
+cor.heatmap
+```
+
+```{r}
+
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+
+s <- subset(Numeric_data, select = c(StrandBalance, MedianSize, MeanSize))
+corMat <- round(cor(y=Numeric_data, x=s, method = "spearman", use = "complete.obs"), 2)
+
+
+
+cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ theme(legend.position = "none") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + ggtitle("Correlations between variables")
+cor.heatmap
+```
+```{r}
+
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+
+s <- subset(Numeric_data, select = c(PFHQmedianMismatches, PFindelRate, ChimerasPercentage, MeanBaitCoverage, MeanTargetCoverage, MedianTargetCoverage, FoldEnrichment, TargetBasesPct20X))
+corMat <- round(cor(y=Numeric_data, x=s, method = "spearman", use = "complete.obs"), 2)
 
 
 
@@ -211,6 +308,14 @@ cor.heatmap
 Numeric_data$Used <- data2$Used
 Numeric_data$kit <- data2$DesignNumber
 Numeric_data <- as.data.frame(Numeric_data)
+Numeric_data <- subset(Numeric_data, select = -c(AdapterPercentage,MedianAbsoluteDeviation, MinSize, W10, W20, W30, W40, W50, W60, W70, W80, W90, W99))
+Numeric_data <- subset(Numeric_data, select = -c(MeanReadLenght, ReadsAllignedInPairs, MaxSize, ReadPairs, PFreads.x, PFaligned, PFuniqueReads, PFHQalignedBases, PFalignedBases, PFmismatchRate, 
+      PercentageUsableBasesOnBait, PercentageUsableBasesOnTarget, TotalPass, SecondaryPass, DuplicatePass, MappedPass, 
+      PairedSeqPass, Read1Pass, Read2Pass, PoperPairPass, SelfAndMatePass, SingletonsPass, SingletonsPercentage, MateOnDiffChromosomeLowPass, MateOnDiffChromosomeHighPass, PFHQErrorRate))
+
+Numeric_data <- subset(Numeric_data, select = -c(MeanSize, MeanTargetCoverage, FoldEnrichment))
+Unlabeled <- subset(Numeric_data, select = -c(Used, kit))
+
 head(Numeric_data)
 ```
 
@@ -218,8 +323,8 @@ head(Numeric_data)
 library(tidyverse)
 library(caret)
 library(xgboost)
-
-Numeric_data_u <- subset(Numeric_data, select = -c(kit))
+Numeric_data$Instrument <- data2$Instrument
+Numeric_data_u <-Numeric_data
 
 
 training.data <- Numeric_data_u$Used %>% 
@@ -253,13 +358,93 @@ table(test.data$Used, test.data$predicted)
 ```{r}
 varImp(model)
 ```
+Standard Deviation: SD of insert sizes over the core of the distribution
+
+Intensity: The average of the A channel, measured at Cycle one of sequencing, averaged over the clusters
+
+PFUQaligned: The number of reads that were aligned to the reference sequence with a mapping quality of Q20 or higher
+
+ChimerasPercentage: Sequences formed from two or more biological sequences joined together, contamination of samples? Fraction of reads that map outside of the maximum insertsize, or have two ends mapping to different chromosomes.
+
+Q30: The percentage of reads that have a quality score of 30 or higher
+
+TotalREads: total number of reads in the run\
+
+StrandBalance: The number of PF reads aligned to the positive strand of the genome divided by the number of PF reads aligned to the genome.
+
+TargetBasespct10X: The fraction of all target bases achieving 10X or greater coverage.
+
+HsLibrarySize: The estimated number of unique molecules in the selected part of the library.
+
+SelectedBasesPercentage: The fraction of Aligend Bases located on or near a baited regio
+
+```{r}
+library(ROCR)
+a<- as.numeric(test.data$predicted)
+
+b<- as.numeric(test.data$Used)
+
+pred <- prediction(a, b)
+auc.tmp <- performance(pred,"auc")
+auc <- as.numeric(auc.tmp@y.values)
+auc
+```
+
+```{r}
+filtered <- prepData[grepl("DNA-\\d+", prepData$SampleName),]
+filtered$SampleName[1] <- "DNA-000557"
+header <- levels(as.factor(filtered$FieldName))
+DNA.Numbers <- unique(filtered[1:4])
+
+DNA.Numbers[duplicated(DNA.Numbers$SampleName),]
+UniqueDNA <- DNA.Numbers[!(duplicated(DNA.Numbers$SampleName) | duplicated(DNA.Numbers$SampleName, fromLast = TRUE)), ]
+
+UniqueDNA$SampleName <- apply(UniqueDNA, 1, function(x) {
+  return(gsub('-', '', x["SampleName"]))
+})
+```
+```{r}
+library(ggplot2)
+data2$DNA_numbers <- as.vector(data2$DNA_numbers)
+preprepData <- inner_join(UniqueDNA, data2, by=c("SampleName" = "DNA_numbers"))
+preprepData$A260_230 <- as.numeric(preprepData$A260_230)
+preprepData$A260_280 <- as.numeric(preprepData$A260_280)
+preprepData$Concentration <- as.numeric(preprepData$Concentration)
+ggplot(preprepData, aes(x=Concentration, y=ChimerasPercentage)) + geom_point()
+ggplot(preprepData, aes(x=A260_280, y=ChimerasPercentage)) + geom_point()
+ggplot(preprepData, aes(x=A260_230, y=ChimerasPercentage)) + geom_point()
+
+ggplot(preprepData, aes(x=Date, y=A260_280)) + geom_point()
+```
+```{r}
+ggplot(preprepData, aes(x=Concentration, y=Q30)) + geom_point()
+ggplot(preprepData, aes(x=A260_280, y=Q30)) + geom_point()
+ggplot(preprepData, aes(x=A260_230, y=Q30)) + geom_point()
+```
+```{r}
+ggplot(preprepData, aes(x=Concentration, y=TargetBasesPct10X)) + geom_point()
+ggplot(preprepData, aes(x=A260_280, y=TargetBasesPct10X)) + geom_point()
+ggplot(preprepData, aes(x=A260_230, y=TargetBasesPct10X)) + geom_point()
+```
+
+```{r}
+library(factoextra)
+library(ggfortify)
+
+res.pca <- prcomp(Unlabeled, scale = TRUE)
+fviz_eig(res.pca)
+```
+
+```{r}
+autoplot(res.pca, data = Numeric_data, colour = "Used")
+```
 
 ```{r}
 library(caret)
  
-preproc1 <- preProcess(subset(Numeric_data_0, select = -c(Used, kit)), method=c("center", "scale"))
+preproc1 <- preProcess(subset(Numeric_data, select = -c(Used, kit)), method=c("center", "scale"))
  
-norm1 <- predict(preproc1, subset(Numeric_data_0, select = -c(Used, kit)))
+norm1 <- predict(preproc1, subset(Numeric_data, select = -c(Used, kit)))
 ```
 
 
@@ -301,6 +486,17 @@ varImp(model2)
 Chimeras Percentage, Interesting. Chimeras can be seen as contamination of samples/reads. As this metric seems to contri
 
 ```{r}
+library(ROCR)
+a<- as.numeric(predicted.classes)
+
+b<- as.numeric(test.data2$Used)
+
+pred <- prediction(a, b)
+auc.tmp <- performance(pred,"auc")
+auc <- as.numeric(auc.tmp@y.values)
+auc
+```
+```{r}
 summary(Numeric_data$ChimerasPercentage)
 ```
 
@@ -319,25 +515,6 @@ train.data3  <- normKits[training.data3, ]
 test.data3 <- normKits[-training.data3, ]
 ```
 
-```{r}
-# Fit the model on the training set
-set.seed(123)
-modelKits <- train(
-  Kit ~., data = train.data3, method = "xgbTree",
-  trControl = trainControl("cv", number = 10)
-  )
-# Best tuning parameter
-modelKits$bestTune
-```
-
-```{r}
-predicted.classes <- modelKits %>% predict(test.data3)
-mean(predicted.classes == test.data3$Kit)
-```
-
-```{r}
-varImp(modelKits)
-```
 
 ```{r}
 library(tidyverse)
