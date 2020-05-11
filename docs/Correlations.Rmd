@@ -14,6 +14,7 @@ knitr::opts_knit$set(root.dir = 'C:/Users/Jouke/Documents/analysis-metrics-predi
 library(DBI)
 library(knitr)
 library(ggplot2)
+library(stringr)
 
 ## establish connection to sqlite db
 connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
@@ -117,7 +118,7 @@ Metrics.per.Sample.pl <- Metrics.per.Sample[,-1]
 rownames(Metrics.per.Sample.pl) <-Metrics.per.Sample[,1]
 Metrics.per.Sample <- Metrics.per.Sample.pl
 rm(Metrics.per.Sample.pl)
-
+runs <-  dbReadTable(connection, "RunSummary")
 samples <- dbReadTable(connection, "Samples")
 dbDisconnect(connection)
 rm(connection, res)
@@ -147,6 +148,84 @@ samples$DesignNumber <- as.factor(apply(samples, 1, function(x) {
 samples <- subset(samples, ((grepl("DNA\\d+", DNA_numbers) )))
 head(samples)
 levels(samples$UniqueKits)
+
+check_flowcell <- function(row) {
+  x <- row["flowcell"]
+  if (str_detect(x, regex("C[A-Z,0-9]{4}ANXX$"))) { return("HiSeq 1500")}
+  if (str_detect(x, regex("C[A-Z,0-9]{4}ACXX$"))) { return("HiSeq 1000")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}ADXX$"))) { return("HiSeq 1500")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BCXX$"))) { return("HiSeq 1500")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BCXY$"))) { return("HiSeq 1500")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BBXX$"))) { return("HiSeq 4000")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BBXY$"))) { return("HiSeq 4000")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}CCXX$"))) { return("HiSeq X")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}CCXY$"))) { return("HiSeq X")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}ALXX$"))) { return("HiSeq X")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BGXX$"))) { return("NextSeq")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BGXY$"))) { return("NextSeq")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BGX2$"))) { return("NextSeq")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}AFXX$"))) { return("NextSeq")}
+  if (str_detect(x, regex("A[A-Z,0-9]{4}$"))) { return("MiSeq")}
+  if (str_detect(x, regex("B[A-Z,0-9]{4}$"))) { return("MiSeq")}
+  if (str_detect(x, regex("D[A-Z,0-9]{4}$"))) { return("MiSeq")}
+  if (str_detect(x, regex("G[A-Z,0-9]{4}$"))) { return("MiSeq")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}DMXX$"))) { return("NovaSeq")}
+  return(row["Sequencer"]) # if no instrument type can be found, return the sequencer id to keep it destinguiasable
+
+}
+instruments <- function(row) {
+  x <- row["Sequencer"]
+  flowcell <- row["Flowcell"]
+  if (str_detect(x, regex("HWI-M[0-9]{4}$"))) {
+   return("MiSeq")
+ }
+  if (str_detect(x, regex("HWUSI"))) {
+   return("Genome Analyzer IIx")
+  }
+  if (str_detect(x, regex("M[0-9]{5}$"))) {
+   return("MiSeq")
+  }
+  if (str_detect(x, regex("HWI-C[0-9]{5}$"))) {
+   return("HiSeq 1500")
+  }
+  if (str_detect(x, regex("C[0-9]{5}$"))) {
+   return("HiSeq 1500")
+  }
+  if (str_detect(x, regex("HWI-D[0-9]{5}$"))) {
+   return("HiSeq 2500")
+  }
+  if (str_detect(x, regex("D[0-9]{5}$"))) {
+   return("HiSeq 2500")
+  }
+  if (str_detect(x, regex("J[0-9]{5}$"))) {
+   return("HiSeq 3000")
+  }
+  if (str_detect(x, regex("K[0-9]{5}$"))) {
+    return(check_flowcell(row))
+  }
+  if (str_detect(x, regex("E[0-9]{5}$"))) {
+   return("HiSeq X")
+  }
+  if (str_detect(x, regex("NB[0-9]{6}$"))) {
+   return("NextSeq")
+  }
+  if (str_detect(x, regex("NS[0-9]{6}$"))) {
+   return("NextSeq")
+  }
+  if (str_detect(x, regex("MN[0-9]{5}$"))) {
+   return("MiniSeq")
+  }
+  return(check_flowcell(row))
+}
+
+samples$Instrument <- apply(samples, 1, instruments)
+```
+```{r}
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+
+
+dbDisconnect(connection)
+
 ```
 
 ```{r}
