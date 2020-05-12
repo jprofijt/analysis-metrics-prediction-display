@@ -16,7 +16,7 @@ library(knitr)
 library(ggplot2)
 library(stringr)
 
-prepData <- read.csv("data/GokuVsVegeta/QXTData.csv", sep = "\t", header = F)
+prepData <- read.csv2("data/GokuVsVegeta/QXTData.csv", sep = "\t", header = F, dec = ",")
 colnames(prepData) <- c("SampleName", "Concentration", "A260_280", "A260_230", "ProcessStepId", "ExitDate", "ContainerPosition", "RequestId", "BatchId", "FinishedBy", "isFirstPriority", "FieldName", "DataType", "Value")
 ## establish connection to sqlite db
 connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
@@ -152,6 +152,18 @@ hs <- dbReadTable(connection, "hsMetrics")
 InsertSizes <- dbReadTable(connection, "InsertSizes")
 RUNS <- dbReadTable(connection, "RUNS")
 RunSummary <- dbReadTable(connection, "RunSummary")
+Lanes <- dbReadTable(connection, "Lanes")
+res <- dbSendQuery(connection, "
+                  SELECT
+                  Samples.ID as SampleID,
+                  avg(Lanes.DensityMAX) as ClusterDensity
+                  FROM Samples 
+                  INNER JOIN RUNS ON Samples.Sequencer==RUNS.Sequencer AND Samples.Run==RUNS.Number AND Samples.startDate==RUNS.Date 
+                  INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID
+                  INNER JOIN Lanes ON RUNS.UniqueID==Lanes.UniqueID
+                  GROUP BY Samples.ID
+                  ORDER BY RUNS.Date")
+CD <- dbFetch(res)
 FL <- dbReadTable(connection, "FlagstatMetrics")
 dbDisconnect(connection)
 RunSummary <- aggregate(RunSummary[, c(2:4, 6:7)], list(RunSummary$UniqueID), sum)
@@ -160,10 +172,12 @@ RunSummary <- aggregate(RunSummary[, c(2:4, 6:7)], list(RunSummary$UniqueID), su
 RunMetrics <- left_join(RUNS, RunSummary, by = c("UniqueID" = "Group.1"))
 RunMetrics$Date <- as.Date(RunMetrics$Date)
 data <- left_join(RunMetrics, samples, by = c("Sequencer"= "Sequencer", "Number" = "run", "Date" = "startDate"))
+data <- left_join(data, CD, by = c("ID" = "SampleID"))
 data <- left_join(data, ASM, by = c("ID" = "SampleID"))
 data <- left_join(data, hs, by = c("ID" = "SampleID", "RunID.y" = "RunID"))
 data <- left_join(data, InsertSizes, by = c("ID" = "SampleID", "RunID.y" = "RunID"))
 data <- left_join(data, FL, by = c("ID" = "SampleID", "RunID.y" = "RunID"))
+
 data$Used <- as.factor(data$Used)
 str(data)
 ```
@@ -171,7 +185,7 @@ str(data)
 ```{r}
 data$Instrument <- as.factor(data$Instrument)
 data2 <- na.omit(data)
-Numeric_data <- subset(data2, select = -c(UniqueID,RunID.x, Number, Flowcell, Sequencer, Date, flowcell, project, capturingKit, DNA_numbers, DesignNumber, RunID.y, Category, PairOrientation, ID, BaitSet, Used))
+Numeric_data <- subset(data2, select = -c(UniqueID,RunID.x, Number, Instrument,Flowcell, Sequencer, Date, flowcell, project, capturingKit, DNA_numbers, DesignNumber, RunID.y, Category, PairOrientation, ID, BaitSet, Used))
 Numeric_data <- as.data.frame(apply(Numeric_data, 2, as.numeric))
 variance.data <- apply(Numeric_data, 2, var)
 variance.data[variance.data == 0]
@@ -199,7 +213,8 @@ library(reshape2)
 library(dplyr)
 
 s <- subset(Numeric_data, select = c(AdapterPercentage,MedianAbsoluteDeviation, MinSize, StandardDeviation, W10, W20, W30, W40, W50, W60, W70, W80, W90, W99))
-corMat <- round(cor(y=Numeric_data, x=s, method = "spearman", use = "complete.obs"), 2)
+
+corMat <- round(cor(x=Numeric_data, method = "spearman", use = "complete.obs"), 2)
 
 
 
@@ -212,6 +227,7 @@ cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=v
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
                                    size = 12, hjust = 1)) + ggtitle("Correlations between variables")
 cor.heatmap
+rm(corMat, cor.heatmap, s)
 ```
 ```{r}
 
@@ -235,6 +251,7 @@ cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=v
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
                                    size = 12, hjust = 1)) + ggtitle("Correlations between variables")
 cor.heatmap
+rm(corMat, cor.heatmap, s)
 ```
 
 These metrics are related to the total number of reads.
@@ -259,6 +276,7 @@ cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=v
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
                                    size = 12, hjust = 1)) + ggtitle("Correlations between variables")
 cor.heatmap
+rm(corMat, cor.heatmap, s)
 ```
 
 ```{r}
@@ -281,6 +299,7 @@ cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=v
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
                                    size = 12, hjust = 1)) + ggtitle("Correlations between variables")
 cor.heatmap
+rm(corMat, cor.heatmap, s)
 ```
 ```{r}
 
@@ -302,6 +321,7 @@ cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=v
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
                                    size = 12, hjust = 1)) + ggtitle("Correlations between variables")
 cor.heatmap
+rm(corMat, cor.heatmap, s)
 ```
 
 ```{r}
@@ -389,33 +409,220 @@ auc.tmp <- performance(pred,"auc")
 auc <- as.numeric(auc.tmp@y.values)
 auc
 ```
-
+```{r}
+head(prepData)
+```
+```{r}
+# Remove unusable columns
+prepData <- subset(prepData, select = -c(ExitDate, RequestId, FinishedBy, isFirstPriority))
+head(prepData)
+```
 ```{r}
 filtered <- prepData[grepl("DNA-\\d+", prepData$SampleName),]
+
 filtered$SampleName[1] <- "DNA-000557"
-header <- levels(as.factor(filtered$FieldName))
+
+uniqueSamples <- as.vector(unique(filtered$SampleName))
+
+getDNAdata <- function(filtered, DNA.Number) {
+  DNA.data <- filtered[filtered$SampleName == DNA.Number,]
+  colname <- c("DNA_number")
+  vals <- c(DNA.Number)
+  for (row in 1:nrow(DNA.data)) {
+    current <- DNA.data[row,]
+    step <- as.character(current$ProcessStepId)
+    Field <- as.character(current$FieldName)
+    Value <- as.character(current$Value)
+    newField <- paste(Field, step, sep = "_")
+    colname <- c(colname, Field)
+    vals <- c(vals, Value)
+  }
+  df <- t(data.frame(vals))
+  colnames(df) <- colname
+  return(df)
+}
+start <- getDNAdata(filtered, uniqueSamples[1])
+
+for (DNANumber in uniqueSamples[-1]) {
+  dnadata <- getDNAdata(filtered, DNANumber)
+  InBoth = intersect(colnames(start), colnames(dnadata))
+  start <- rbind(start[,InBoth], dnadata[,InBoth])
+}
+
+head(start)
+convertedPrepData <- as.data.frame(start)
+```
+
+```{r}
+
+filtered$Concentration <- as.numeric(gsub(",", ".", filtered$Concentration))
+filtered$A260_280 <- as.numeric(gsub(",", ".", filtered$A260_280))
+filtered$A260_230 <- as.numeric(gsub(",", ".", filtered$A260_230))
 DNA.Numbers <- unique(filtered[1:4])
 
 DNA.Numbers[duplicated(DNA.Numbers$SampleName),]
-UniqueDNA <- DNA.Numbers[!(duplicated(DNA.Numbers$SampleName) | duplicated(DNA.Numbers$SampleName, fromLast = TRUE)), ]
+UniqueDNA <- DNA.Numbers
 
 UniqueDNA$SampleName <- apply(UniqueDNA, 1, function(x) {
   return(gsub('-', '', x["SampleName"]))
 })
+convertedPrepData$DNA_number <- apply(convertedPrepData, 1, function(x) {
+  return(gsub('-', '', x["DNA_number"]))
+})
+head(UniqueDNA)
 ```
 ```{r}
 library(ggplot2)
+library(dplyr)
 data2$DNA_numbers <- as.vector(data2$DNA_numbers)
-preprepData <- inner_join(UniqueDNA, data2, by=c("SampleName" = "DNA_numbers"))
-preprepData$A260_230 <- as.numeric(preprepData$A260_230)
-preprepData$A260_280 <- as.numeric(preprepData$A260_280)
-preprepData$Concentration <- as.numeric(preprepData$Concentration)
-ggplot(preprepData, aes(x=Concentration, y=ChimerasPercentage)) + geom_point()
-ggplot(preprepData, aes(x=A260_280, y=ChimerasPercentage)) + geom_point()
-ggplot(preprepData, aes(x=A260_230, y=ChimerasPercentage)) + geom_point()
+head(data2)
+data2$FractionDuplicate <- data2$PFuniqueReads/data2$PFreads.y
+metricsToAnalyze <- subset(data2, select = c(DNA_numbers, Q30, ChimerasPercentage, TargetBasesPct10X, HsLibrarySize, OnBaitVSselected, ClusterDensity, FractionDuplicate, Intensity, MedianSize))
 
-ggplot(preprepData, aes(x=Date, y=A260_280)) + geom_point()
+preprepData <- inner_join(UniqueDNA, convertedPrepData , by=c("SampleName" = "DNA_number"))
+preprepData <- inner_join(preprepData, metricsToAnalyze, by=c("SampleName" = "DNA_numbers"))
+
+head(preprepData)
 ```
+```{r}
+preprepData <- subset(preprepData, select = -c(WORKLIST_PROCESS_STEP_ID, SCANNED)) ## Remove unusable data
+preprepData.num <- subset(preprepData, select = -c(SampleName, SURESELECT_QXT_KIT_ID, SURESELECT_QXT_HYB_MOD_BOX1_ID, ROBOTCONTROLE_USER, AMPUREBEADS_ID, ETOH_ID, SURESELECT_TARGET_ENRICHMENT_KIT))
+replaceComma <- function(x) {
+  return(gsub(",", ".", x))
+}
+preprepData.num <- as.data.frame(apply(preprepData.num, 2, replaceComma))
+preprepData.num <- as.data.frame(apply(preprepData.num, 2, as.numeric))
+preprepData.tot <- subset(preprepData, select = c(SampleName, SURESELECT_QXT_KIT_ID, SURESELECT_QXT_HYB_MOD_BOX1_ID, ROBOTCONTROLE_USER, AMPUREBEADS_ID, ETOH_ID, SURESELECT_TARGET_ENRICHMENT_KIT))
+preprepData.num.na <- na.omit(preprepData.num)
+preprepData.tot2 <- cbind(preprepData.tot, preprepData.num)
+preprepData.tot2$SURESELECT_QXT_KIT_ID <- as.factor(preprepData.tot2$SURESELECT_QXT_KIT_ID)
+preprepData.tot2$SURESELECT_QXT_HYB_MOD_BOX1_ID <- as.factor(preprepData.tot2$SURESELECT_QXT_HYB_MOD_BOX1_ID)
+preprepData.tot2$ROBOTCONTROLE_USER <- as.factor(preprepData.tot2$ROBOTCONTROLE_USER)
+preprepData.tot2$AMPUREBEADS_ID <- as.factor(preprepData.tot2$AMPUREBEADS_ID)
+preprepData.tot2$ETOH_ID <- as.factor(preprepData.tot2$ETOH_ID)
+preprepData.tot2$SURESELECT_TARGET_ENRICHMENT_KIT <- as.factor(preprepData.tot2$SURESELECT_TARGET_ENRICHMENT_KIT)
+```
+
+```{r}
+ggplot(preprepData.num.na, aes(x=Concentration, y=ChimerasPercentage)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_280, y=ChimerasPercentage)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_230, y=ChimerasPercentage)) + geom_point()
+ggplot(preprepData.num.na, aes(x=CONCENTRATION, y=ChimerasPercentage)) + geom_point()
+ggplot(preprepData.num.na, aes(x=MOLARITY, y=ChimerasPercentage)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_KIT_ID, y=ChimerasPercentage)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_HYB_MOD_BOX1_ID, y=ChimerasPercentage)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ROBOTCONTROLE_USER, y=ChimerasPercentage)) + geom_boxplot()
+ggplot(preprepData.tot2, aes(x=AMPUREBEADS_ID, y=ChimerasPercentage)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ETOH_ID, y=ChimerasPercentage)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_TARGET_ENRICHMENT_KIT, y=ChimerasPercentage)) + geom_point()
+```
+```{r}
+ggplot(preprepData.num.na, aes(x=Concentration, y=Q30)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_280, y=Q30)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_230, y=Q30)) + geom_point()
+ggplot(preprepData.num.na, aes(x=CONCENTRATION, y=Q30)) + geom_point()
+ggplot(preprepData.num.na, aes(x=MOLARITY, y=Q30)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_KIT_ID, y=Q30)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_HYB_MOD_BOX1_ID, y=Q30)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ROBOTCONTROLE_USER, y=Q30)) + geom_boxplot()
+ggplot(preprepData.tot2, aes(x=AMPUREBEADS_ID, y=Q30)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ETOH_ID, y=Q30)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_TARGET_ENRICHMENT_KIT, y=Q30)) + geom_point()
+```
+```{r}
+ggplot(preprepData.num.na, aes(x=Concentration, y=TargetBasesPct10X)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_280, y=TargetBasesPct10X)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_230, y=TargetBasesPct10X)) + geom_point()
+ggplot(preprepData.num.na, aes(x=CONCENTRATION, y=TargetBasesPct10X)) + geom_point()
+ggplot(preprepData.num.na, aes(x=MOLARITY, y=TargetBasesPct10X)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_KIT_ID, y=TargetBasesPct10X)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_HYB_MOD_BOX1_ID, y=TargetBasesPct10X)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ROBOTCONTROLE_USER, y=TargetBasesPct10X)) + geom_boxplot()
+ggplot(preprepData.tot2, aes(x=AMPUREBEADS_ID, y=TargetBasesPct10X)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ETOH_ID, y=TargetBasesPct10X)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_TARGET_ENRICHMENT_KIT, y=TargetBasesPct10X)) + geom_point()
+```
+```{r}
+ggplot(preprepData.num.na, aes(x=Concentration, y=HsLibrarySize)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_280, y=HsLibrarySize)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_230, y=HsLibrarySize)) + geom_point()
+ggplot(preprepData.num.na, aes(x=CONCENTRATION, y=HsLibrarySize)) + geom_point()
+ggplot(preprepData.num.na, aes(x=MOLARITY, y=HsLibrarySize)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_KIT_ID, y=HsLibrarySize)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_HYB_MOD_BOX1_ID, y=HsLibrarySize)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ROBOTCONTROLE_USER, y=HsLibrarySize)) + geom_boxplot()
+ggplot(preprepData.tot2, aes(x=AMPUREBEADS_ID, y=HsLibrarySize)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ETOH_ID, y=HsLibrarySize)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_TARGET_ENRICHMENT_KIT, y=HsLibrarySize)) + geom_point()
+```
+```{r}
+ggplot(preprepData.num.na, aes(x=Concentration, y=OnBaitVSselected)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_280, y=OnBaitVSselected)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_230, y=OnBaitVSselected)) + geom_point()
+ggplot(preprepData.num.na, aes(x=CONCENTRATION, y=OnBaitVSselected)) + geom_point()
+ggplot(preprepData.num.na, aes(x=MOLARITY, y=OnBaitVSselected)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_KIT_ID, y=OnBaitVSselected)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_HYB_MOD_BOX1_ID, y=OnBaitVSselected)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ROBOTCONTROLE_USER, y=OnBaitVSselected)) + geom_boxplot()
+ggplot(preprepData.tot2, aes(x=AMPUREBEADS_ID, y=OnBaitVSselected)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ETOH_ID, y=OnBaitVSselected)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_TARGET_ENRICHMENT_KIT, y=OnBaitVSselected)) + geom_point()
+```
+
+```{r}
+ggplot(preprepData.num.na, aes(x=Concentration, y=ClusterDensity)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_280, y=ClusterDensity)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_230, y=ClusterDensity)) + geom_point()
+ggplot(preprepData.num.na, aes(x=CONCENTRATION, y=ClusterDensity)) + geom_point()
+ggplot(preprepData.num.na, aes(x=MOLARITY, y=ClusterDensity)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_KIT_ID, y=ClusterDensity)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_HYB_MOD_BOX1_ID, y=ClusterDensity)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ROBOTCONTROLE_USER, y=ClusterDensity)) + geom_boxplot()
+ggplot(preprepData.tot2, aes(x=AMPUREBEADS_ID, y=ClusterDensity)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ETOH_ID, y=ClusterDensity)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_TARGET_ENRICHMENT_KIT, y=ClusterDensity)) + geom_point()
+```
+```{r}
+ggplot(preprepData.num.na, aes(x=Concentration, y=FractionDuplicate)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_280, y=FractionDuplicate)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_230, y=FractionDuplicate)) + geom_point()
+ggplot(preprepData.num.na, aes(x=CONCENTRATION, y=FractionDuplicate)) + geom_point()
+ggplot(preprepData.num.na, aes(x=MOLARITY, y=FractionDuplicate)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_KIT_ID, y=FractionDuplicate)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_HYB_MOD_BOX1_ID, y=FractionDuplicate)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ROBOTCONTROLE_USER, y=FractionDuplicate)) + geom_boxplot()
+ggplot(preprepData.tot2, aes(x=AMPUREBEADS_ID, y=FractionDuplicate)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ETOH_ID, y=FractionDuplicate)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_TARGET_ENRICHMENT_KIT, y=FractionDuplicate)) + geom_point()
+```
+```{r}
+ggplot(preprepData.num.na, aes(x=Concentration, y=Intensity)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_280, y=Intensity)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_230, y=Intensity)) + geom_point()
+ggplot(preprepData.num.na, aes(x=CONCENTRATION, y=Intensity)) + geom_point()
+ggplot(preprepData.num.na, aes(x=MOLARITY, y=Intensity)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_KIT_ID, y=Intensity)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_HYB_MOD_BOX1_ID, y=Intensity)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ROBOTCONTROLE_USER, y=Intensity)) + geom_boxplot()
+ggplot(preprepData.tot2, aes(x=AMPUREBEADS_ID, y=Intensity)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ETOH_ID, y=Intensity)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_TARGET_ENRICHMENT_KIT, y=Intensity)) + geom_point()
+```
+
+```{r}
+ggplot(preprepData.num.na, aes(x=Concentration, y=MedianSize)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_280, y=MedianSize)) + geom_point()
+ggplot(preprepData.num.na, aes(x=A260_230, y=MedianSize)) + geom_point()
+ggplot(preprepData.num.na, aes(x=CONCENTRATION, y=MedianSize)) + geom_point()
+ggplot(preprepData.num.na, aes(x=MOLARITY, y=MedianSize)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_KIT_ID, y=MedianSize)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_HYB_MOD_BOX1_ID, y=MedianSize)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ROBOTCONTROLE_USER, y=MedianSize)) + geom_boxplot()
+ggplot(preprepData.tot2, aes(x=AMPUREBEADS_ID, y=MedianSize)) + geom_point()
+ggplot(preprepData.tot2, aes(x=ETOH_ID, y=MedianSize)) + geom_point()
+ggplot(preprepData.tot2, aes(x=SURESELECT_TARGET_ENRICHMENT_KIT, y=MedianSize)) + geom_point()
+```
+
 ```{r}
 ggplot(preprepData, aes(x=Concentration, y=Q30)) + geom_point()
 ggplot(preprepData, aes(x=A260_280, y=Q30)) + geom_point()
