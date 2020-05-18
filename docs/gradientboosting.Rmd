@@ -152,11 +152,13 @@ hs <- dbReadTable(connection, "hsMetrics")
 InsertSizes <- dbReadTable(connection, "InsertSizes")
 RUNS <- dbReadTable(connection, "RUNS")
 RunSummary <- dbReadTable(connection, "RunSummary")
+
 Lanes <- dbReadTable(connection, "Lanes")
 res <- dbSendQuery(connection, "
                   SELECT
                   Samples.ID as SampleID,
-                  avg(Lanes.DensityMAX) as ClusterDensity
+                  avg(Lanes.DensityMAX) as ClusterDensity,
+                  avg(Lanes.Q30) as Average_Q30
                   FROM Samples 
                   INNER JOIN RUNS ON Samples.Sequencer==RUNS.Sequencer AND Samples.Run==RUNS.Number AND Samples.startDate==RUNS.Date 
                   INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID
@@ -418,6 +420,7 @@ prepData <- subset(prepData, select = -c(ExitDate, RequestId, FinishedBy, isFirs
 head(prepData)
 ```
 ```{r}
+library(plyr)
 filtered <- prepData[grepl("DNA-\\d+", prepData$SampleName),]
 
 filtered$SampleName[1] <- "DNA-000557"
@@ -439,14 +442,14 @@ getDNAdata <- function(filtered, DNA.Number) {
   }
   df <- t(data.frame(vals))
   colnames(df) <- colname
+  df <- as.data.frame(df)
   return(df)
 }
 start <- getDNAdata(filtered, uniqueSamples[1])
 
 for (DNANumber in uniqueSamples[-1]) {
   dnadata <- getDNAdata(filtered, DNANumber)
-  InBoth = intersect(colnames(start), colnames(dnadata))
-  start <- rbind(start[,InBoth], dnadata[,InBoth])
+  start <- rbind.fill(start, dnadata)
 }
 
 head(start)
@@ -454,7 +457,6 @@ convertedPrepData <- as.data.frame(start)
 ```
 
 ```{r}
-
 filtered$Concentration <- as.numeric(gsub(",", ".", filtered$Concentration))
 filtered$A260_280 <- as.numeric(gsub(",", ".", filtered$A260_280))
 filtered$A260_230 <- as.numeric(gsub(",", ".", filtered$A260_230))
@@ -476,59 +478,390 @@ library(ggplot2)
 library(dplyr)
 data2$DNA_numbers <- as.vector(data2$DNA_numbers)
 head(data2)
-data2$FractionDuplicate <- data2$PFuniqueReads/data2$PFreads.y
-metricsToAnalyze <- subset(data2, select = c(DNA_numbers, Q30, ChimerasPercentage, TargetBasesPct10X, HsLibrarySize, OnBaitVSselected, ClusterDensity, FractionDuplicate, Intensity, MedianSize))
+data2$FractionDuplicate <- (data2$PFreads.y - data2$PFuniqueReads)/data2$PFreads.y
+metricsToAnalyze <- subset(data2, select = c(DNA_numbers, Instrument, Average_Q30, ChimerasPercentage, TargetBasesPct10X, HsLibrarySize, OnBaitVSselected, ClusterDensity, FractionDuplicate, Intensity, MedianSize, Date, Used))
 
 preprepData <- inner_join(UniqueDNA, convertedPrepData , by=c("SampleName" = "DNA_number"))
 preprepData <- inner_join(preprepData, metricsToAnalyze, by=c("SampleName" = "DNA_numbers"))
 
-head(preprepData)
+
 ```
 ```{r}
-preprepData <- subset(preprepData, select = -c(WORKLIST_PROCESS_STEP_ID, SCANNED)) ## Remove unusable data
-preprepData.num <- subset(preprepData, select = -c(SampleName, SURESELECT_QXT_KIT_ID, SURESELECT_QXT_HYB_MOD_BOX1_ID, ROBOTCONTROLE_USER, AMPUREBEADS_ID, ETOH_ID, SURESELECT_TARGET_ENRICHMENT_KIT))
+preprepData.sub <- subset(preprepData, select = c(SampleName, Date, Used, Instrument))
+preprepData.num <- subset(preprepData, select = c(A260_230, A260_280, Average_Q30, ChimerasPercentage, TargetBasesPct10X, HsLibrarySize, ClusterDensity, FractionDuplicate, Intensity, MedianSize, SampleName))
+
 replaceComma <- function(x) {
   return(gsub(",", ".", x))
 }
-preprepData.num <- as.data.frame(apply(preprepData.num, 2, replaceComma))
-preprepData.num <- as.data.frame(apply(preprepData.num, 2, as.numeric))
-preprepData.tot <- subset(preprepData, select = c(SampleName, SURESELECT_QXT_KIT_ID, SURESELECT_QXT_HYB_MOD_BOX1_ID, ROBOTCONTROLE_USER, AMPUREBEADS_ID, ETOH_ID, SURESELECT_TARGET_ENRICHMENT_KIT))
-preprepData.num.na <- na.omit(preprepData.num)
-preprepData.tot2 <- cbind(preprepData.tot, preprepData.num)
-preprepData.tot2$SURESELECT_QXT_KIT_ID <- as.factor(preprepData.tot2$SURESELECT_QXT_KIT_ID)
-preprepData.tot2$SURESELECT_QXT_HYB_MOD_BOX1_ID <- as.factor(preprepData.tot2$SURESELECT_QXT_HYB_MOD_BOX1_ID)
-preprepData.tot2$ROBOTCONTROLE_USER <- as.factor(preprepData.tot2$ROBOTCONTROLE_USER)
-preprepData.tot2$AMPUREBEADS_ID <- as.factor(preprepData.tot2$AMPUREBEADS_ID)
-preprepData.tot2$ETOH_ID <- as.factor(preprepData.tot2$ETOH_ID)
-preprepData.tot2$SURESELECT_TARGET_ENRICHMENT_KIT <- as.factor(preprepData.tot2$SURESELECT_TARGET_ENRICHMENT_KIT)
+
+preprepData.num[-11] <- apply(preprepData.num[-11], 2, replaceComma)
+preprepData.num[-11] <- as.data.frame(apply(preprepData.num[-11], 2, as.numeric))
+
+preprepData.tot <- merge(preprepData.sub, preprepData.num, by = c("SampleName" = "SampleName"))
+preprepData.tot.na <- na.omit(preprepData.tot)
+preprepData.tot.na
+```
+```{r}
+
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+
+
+corMat <- round(cor(preprepData.tot.na[-c(1, 2, 3, 4)], method = "pearson", use = "complete.obs"), 2)
+
+
+
+cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ theme(legend.position = "none") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + ggtitle("Correlations between variables")
+cor.heatmap
+rm(corMat, cor.heatmap, s)
+```
+```{r}
+plot(density(preprepData.tot.na$A260_280), xlab = "A260/280 ratio", main = "Density plot of A260/280 ratio")
+```
+Company policy states the A260/280 ratio cannot fall below 1.8, or exceed 2.0
+
+
+
+```{r}
+## H0: Q30 Is not liniarly correlated to the DNA purity (A260_230)
+## Ha: Q30 has a correlation to DNA purity (A260_230)
+library(ggplot2)
+library(Hmisc)
+head(preprepData.tot.na)
+dat <- preprepData.tot.na[c("Average_Q30", "A260_230", "Instrument", "Used", "Date")]
+head(dat)
+
+p1 <- ggplot(dat, aes(x=A260_230, y=Average_Q30, colour = Instrument)) + geom_point() + theme(axis.title.x = element_blank())
+p2 <- ggplot(dat, aes(x=A260_230, y=Average_Q30, colour = Used)) + geom_point() + theme(axis.title.x = element_blank())
+p3 <- ggplot(dat, aes(y=A260_230, x=Date, colour = Used)) + geom_point() + theme(axis.title.x = element_blank())
+p4 <- ggplot(dat, aes(y=Average_Q30, x=Date, colour = Used)) + geom_point() + theme(axis.title.x = element_blank())
+c <- rcorr(dat$Average_Q30, dat$A260_230)
+pVal <- c$P[1,2]
+r <- c$r[1,2]
+paste("r: ", r)
+paste("Significance: ", pVal)
+p1
+p2
+p3
+p4
+```
+We cannot significantly exclude the possibility of a linear correlation between Q30 and 260_230.
+What we do see is a difference between the sequencers, MiSeq seems a lot more consistent between its quality than NextSeq.
+The Q30 percentage does not seem to affect wheter or not a sample had to be reinserted or not.
+The Q30 percentage seems to have greater fluctuation and outliers in 2018
+
+```{r}
+## H0: Q30 Is not liniarly correlated to the DNA purity (A260_280)
+## Ha: Q30 has a correlation to DNA purity (A260_280)
+library(ggplot2)
+library(Hmisc)
+dat <- preprepData.tot.na[c("Average_Q30", "A260_280", "Instrument", "Used", "Date")]
+
+
+p5 <- ggplot(dat, aes(y=A260_280, x=Average_Q30, colour = Instrument)) + geom_point() + theme(axis.title.x = element_blank())
+p6 <- ggplot(dat, aes(y=A260_280, x=Average_Q30, colour = Used)) + geom_point() + theme(axis.title.x = element_blank())
+p7 <- ggplot(dat, aes(y=A260_280, x=Date, colour = Used)) + geom_point() + theme(axis.title.x = element_blank())
+
+p5
+p6
+p7
+```
+```{r}
+dat <- preprepData.tot.na[c("Average_Q30", "A260_280", "Instrument", "Used", "Date")]
+summaryObj <- summary(dat$A260_280)
+QR1 <- summaryObj[2]
+QR3 <- summaryObj[5]
+dat <- dat[dat$A260_280 > 1,]
+dat <- dat[dat$A260_280 < 2.2,]
+
+summaryObj <- summary(dat$Average_Q30)
+QR1 <- summaryObj[2]
+QR3 <- summaryObj[5]
+QR1
+dat <- dat[dat$Average_Q30 < QR3,]
+dat <- dat[dat$Average_Q30 > QR1,]
+ggplot(dat, aes(y=A260_280, x=Average_Q30, colour = Instrument)) + geom_point() + ggtitle("260/280 ratio vs Average Q30 per lane")
+c <- rcorr(dat$Average_Q30, dat$A260_280)
+pVal <- c$P[1,2]
+r <- c$r[1,2]
+paste("r: ", r)
+paste("Significance: ", pVal)
 ```
 
 ```{r}
-ggplot(preprepData.num.na, aes(x=Concentration, y=ChimerasPercentage)) + geom_point()
-ggplot(preprepData.num.na, aes(x=A260_280, y=ChimerasPercentage)) + geom_point()
-ggplot(preprepData.num.na, aes(x=A260_230, y=ChimerasPercentage)) + geom_point()
-ggplot(preprepData.num.na, aes(x=CONCENTRATION, y=ChimerasPercentage)) + geom_point()
-ggplot(preprepData.num.na, aes(x=MOLARITY, y=ChimerasPercentage)) + geom_point()
-ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_KIT_ID, y=ChimerasPercentage)) + geom_point()
-ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_HYB_MOD_BOX1_ID, y=ChimerasPercentage)) + geom_point()
-ggplot(preprepData.tot2, aes(x=ROBOTCONTROLE_USER, y=ChimerasPercentage)) + geom_boxplot()
-ggplot(preprepData.tot2, aes(x=AMPUREBEADS_ID, y=ChimerasPercentage)) + geom_point()
-ggplot(preprepData.tot2, aes(x=ETOH_ID, y=ChimerasPercentage)) + geom_point()
-ggplot(preprepData.tot2, aes(x=SURESELECT_TARGET_ENRICHMENT_KIT, y=ChimerasPercentage)) + geom_point()
+library(ggplot2)
+library(Hmisc)
+dat <- preprepData.tot.na[c("ChimerasPercentage", "A260_280", "Used", "Instrument", "Date")]
+
+dat <- dat[dat$A260_280 > 1,]
+dat <- dat[dat$A260_280 < 2.2,]
+p2 <- ggplot(dat, aes(x=A260_280, y=ChimerasPercentage, colour = Used)) + geom_point()+ theme(axis.title.x = element_blank())
+p3 <- ggplot(dat, aes(x=A260_280, y=ChimerasPercentage, colour = Instrument)) + geom_point()+ theme(axis.title.x = element_blank())
+p4 <- ggplot(dat, aes(x=Date, y=ChimerasPercentage, colour = Instrument)) + geom_point()+ theme(axis.title.x = element_blank())
+c <- rcorr(dat$ChimerasPercentage, dat$A260_280)
+pVal <- c$P[1,2]
+r <- c$r[1,2]
+paste("r: ", r)
+paste("Significance: ", pVal)
+p2
+p3
+p4
 ```
 ```{r}
-ggplot(preprepData.num.na, aes(x=Concentration, y=Q30)) + geom_point()
-ggplot(preprepData.num.na, aes(x=A260_280, y=Q30)) + geom_point()
-ggplot(preprepData.num.na, aes(x=A260_230, y=Q30)) + geom_point()
-ggplot(preprepData.num.na, aes(x=CONCENTRATION, y=Q30)) + geom_point()
-ggplot(preprepData.num.na, aes(x=MOLARITY, y=Q30)) + geom_point()
-ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_KIT_ID, y=Q30)) + geom_point()
-ggplot(preprepData.tot2, aes(x=SURESELECT_QXT_HYB_MOD_BOX1_ID, y=Q30)) + geom_point()
-ggplot(preprepData.tot2, aes(x=ROBOTCONTROLE_USER, y=Q30)) + geom_boxplot()
-ggplot(preprepData.tot2, aes(x=AMPUREBEADS_ID, y=Q30)) + geom_point()
-ggplot(preprepData.tot2, aes(x=ETOH_ID, y=Q30)) + geom_point()
-ggplot(preprepData.tot2, aes(x=SURESELECT_TARGET_ENRICHMENT_KIT, y=Q30)) + geom_point()
+library(ggplot2)
+library(Hmisc)
+dat <- preprepData.tot.na[c("TargetBasesPct10X", "A260_280", "Used", "Instrument")]
+head(dat)
+dat <- dat[dat$A260_280 > 1,]
+
+p3 <- ggplot(dat, aes(x=A260_280, y=TargetBasesPct10X, colour = Used)) + geom_point()+ theme(axis.title.x = element_blank())
+p4 <- ggplot(dat, aes(x=A260_280, y=TargetBasesPct10X, colour = Instrument)) + geom_point()+ theme(axis.title.x = element_blank())
+c <- rcorr(dat$TargetBasesPct10X, dat$A260_280)
+pVal <- c$P[1,2]
+r <- c$r[1,2]
+paste("r: ", r)
+paste("Significance: ", pVal)
+p3
+p4
 ```
+
+```{r}
+library(ggplot2)
+library(Hmisc)
+dat <- preprepData.tot.na[c("Intensity", "A260_280", "Instrument")]
+head(dat)
+dat <- dat[dat$A260_280 > 1,]
+p4 <- ggplot(dat, aes(x=A260_280, y=Intensity, colour = Instrument)) + geom_point()+ theme(axis.title.x = element_blank())
+
+c <- rcorr(dat$Intensity, dat$A260_280)
+pVal <- c$P[1,2]
+r <- c$r[1,2]
+paste("r: ", r)
+paste("Significance: ", pVal)
+p4
+```
+Here we see a clear difference between the sequencer type used.
+
+```{r}
+dat.mi <- dat[dat$Instrument == "MiSeq",]
+dat.mi <- dat.mi[dat.mi$Intensity < 7500,]
+c <- rcorr(dat.mi$Intensity, dat.mi$A260_280)
+pVal <- c$P[1,2]
+r <- c$r[1,2]
+paste("r: ", r)
+paste("Significance: ", pVal)
+ggplot(dat.mi, aes(x=A260_280, y=Intensity, colour = Instrument)) + geom_point()+ theme(axis.title.x = element_blank())
+```
+```{r}
+dat.out <- dat[(dat$A260_280 > 2.0) | (dat$A260_280 < 1.8),]
+ggplot(dat.out, aes(x=A260_280, y=Intensity, colour = Instrument)) + geom_point()+ theme(axis.title.x = element_blank())
+```
+
+```{r}
+library(ggplot2)
+library(Hmisc)
+dat <- preprepData.tot.na[c("MedianSize", "A260_280")]
+head(dat)
+dat <- dat[dat$A260_280 > 1,]
+p6 <- ggplot(dat, aes(x=A260_280, y=MedianSize)) + geom_point()+ theme(axis.title.x = element_blank())
+
+c <- rcorr(dat$MedianSize, dat$A260_280)
+pVal <- c$P[1,2]
+r <- c$r[1,2]
+paste("r: ", r)
+paste("Significance: ", pVal)
+```
+
+```{r}
+library(ggplot2)
+library(Hmisc)
+dat <- preprepData.tot.na[c("FractionDuplicate", "A260_280")]
+head(dat)
+dat <- dat[dat$A260_280 > 1,]
+p7 <- ggplot(dat, aes(x=A260_280, y=FractionDuplicate)) + geom_point()+ theme(axis.title.x = element_blank())
+
+c <- rcorr(dat$FractionDuplicate, dat$A260_280)
+pVal <- c$P[1,2]
+r <- c$r[1,2]
+paste("r: ", r)
+paste("Significance: ", pVal)
+```
+
+```{r}
+library(ggplot2)
+library(Hmisc)
+dat <- preprepData.tot.na[c("ClusterDensity", "A260_280")]
+head(dat)
+dat <- dat[dat$A260_280 > 1,]
+p8 <- ggplot(dat, aes(x=A260_280, y=ClusterDensity)) + geom_point()+ theme(axis.title.x = element_blank())
+
+c <- rcorr(dat$ClusterDensity, dat$A260_280)
+pVal <- c$P[1,2]
+r <- c$r[1,2]
+paste("r: ", r)
+paste("Significance: ", pVal)
+```
+
+```{r}
+library(ggplot2)
+library(Hmisc)
+dat <- preprepData.tot.na[c("OnBaitVSselected", "A260_280")]
+head(dat)
+dat <- dat[dat$A260_280 > 1,]
+p9 <- ggplot(dat, aes(x=A260_280, y=OnBaitVSselected)) + geom_point()+ theme(axis.title.x = element_blank())
+
+c <- rcorr(dat$OnBaitVSselected, dat$A260_280)
+pVal <- c$P[1,2]
+r <- c$r[1,2]
+paste("r: ", r)
+paste("Significance: ", pVal)
+```
+From comparing DNA purity to the metrics i do not see any concrete pattern
+```{r}
+library(gridExtra)
+g <-grid.arrange(
+  p1,
+  p2,
+  p3,
+  p4,
+  p6,
+  p7,
+  p8,
+  p9,
+  nrow = 3,
+  top = "Metrics compared to DNA purity (A260/280 ratio)"
+)
+ggsave(
+  "DNA-purity.png",
+  plot = g
+)
+```
+
+```{r}
+library(ggplot2)
+library(Hmisc)
+head(preprepData)
+dat <- preprepData[c("Date", "Q30")]
+head(dat)
+p9 <- ggplot(dat, aes(y=Q30, x=Date)) + geom_point()+ theme(axis.title.x = element_blank())
+
+
+p9
+```
+# DNA purity A260/230
+
+```{r}
+library(ggplot2)
+library(Hmisc)
+dat <- preprepData.tot.na[c("Q30", "A260_230")]
+head(dat)
+
+ggplot(dat, aes(x=A260_230, y=Q30)) + geom_point()
+
+c <- rcorr(dat$Q30, dat$A260_230)
+pVal <- c$P[1,2]
+r <- c$r[1,2]
+paste("r: ", r)
+paste("Significance: ", pVal)
+```
+
+```{r}
+library(ggplot2)
+library(Hmisc)
+dat <- preprepData.tot.na[c("Q30", "ClusterDensity")]
+head(dat)
+
+ggplot(dat, aes(x=ClusterDensity, y=Q30)) + geom_point()
+
+c <- rcorr(dat$Q30, dat$ClusterDensity)
+pVal <- c$P[1,2]
+r <- c$r[1,2]
+paste("r: ", r)
+paste("Significance: ", pVal)
+```
+```{r}
+scatter.smooth(x=dat.g1$A260_280, y=dat.g1$Q30, main="Dist ~ Speed")  
+linearMod <- lm(A260_280 ~ Q30, data=dat.g1)
+ModelSummary <- summary(linearMod)
+ModelCoefficents <- ModelSummary$coefficients
+beta.estimate <- ModelCoefficents["Q30", "Estimate"]  # get beta estimate for speed
+std.error <- ModelCoefficents["Q30", "Std. Error"]
+t_value <- beta.estimate/std.error
+p_value <- 2*pt(-abs(t_value), df=nrow(dat.g1)-ncol(dat.g1))
+f_statistic <- linearMod$fstatistic[1]
+f <- summary(linearMod)$fstatistic
+model_p <- pf(f[1], f[2], f[3], lower=FALSE)
+paste("T-value:", t_value)
+paste("P-value:", p_value)
+paste("Model F statistic:", f)
+paste("Model P-value:", model_p)
+```
+
+```{r}
+## H0: Q30 Is not correlated to the DNA purity (A260_280)
+## Ha: Q30 has a correlation to DNA purity (A260_280)
+
+#Means
+Q30M <- mean(dat.g1$Q30)
+PurityM <- mean(dat.g1$A260_280)
+
+#Deviation Scores
+deQ30 <- dat.g1$Q30 - Q30M
+dePurity <- dat.g1$A260_280 - PurityM
+
+deQ302 <- deQ30 ^2
+dePurity2 <- dePurity ^2
+
+ssQ30 <- sum(deQ302)
+ssPurity <- sum(dePurity2)
+
+#Sum of Products
+SP <- sum(deQ30 * dePurity)
+
+r <- SP/(sqrt(ssQ30) * sqrt(ssPurity))
+r
+```
+Whith a significance
+
+```{r}
+library(ggplot2)
+dat <- preprepData.num.na[c("Q30", "MOLARITY")]
+
+ggplot(dat, aes(x=MOLARITY, y=Q30)) + geom_point()
+
+## H0: Q30 Is not correlated to the DNA purity (A260_280)
+## Ha: Q30 has a correlation to DNA purity (A260_280)
+
+#Means
+Q30M <- mean(dat$Q30)
+PurityM <- mean(dat$A260_280)
+
+#Deviation Scores
+deQ30 <- dat$Q30 - Q30M
+dePurity <- dat$A260_280 - PurityM
+
+deQ302 <- deQ30 ^2
+dePurity2 <- dePurity ^2
+
+ssQ30 <- sum(deQ302)
+ssPurity <- sum(dePurity2)
+
+#Sum of Products
+SP <- sum(deQ30 * dePurity)
+
+r <- SP/(sqrt(ssQ30) * sqrt(ssPurity))
+r
+```
+
+
 ```{r}
 ggplot(preprepData.num.na, aes(x=Concentration, y=TargetBasesPct10X)) + geom_point()
 ggplot(preprepData.num.na, aes(x=A260_280, y=TargetBasesPct10X)) + geom_point()
@@ -805,3 +1138,47 @@ head(predictions6)
 RMSE(predictions6, test.data6$Q30)
 varImp(model6)
 ```
+
+```{r}
+library(ggplot2)
+scaled <- scale(preprepData.tot.na[,c(6,7,8,9,10,11,12,13,14)])
+colnames(scaled) <- NULL
+
+scaled <- as.data.frame(scaled)
+colnames(scaled) <- colnames(preprepData.tot.na[,c(6,7,8,9,10,11,12,13,14)])
+scaled$Sample <- preprepData.tot.na$SampleName
+
+
+```
+
+```{r}
+library(reshape2)
+library(ggplot2)
+
+scaled$starting_value <- unlist(lapply(scaled$A260_280, function(x) {
+  val <- x
+  if (val > 1) {
+    if (val > 10) {
+      return("Very High")
+    }
+    return("High")
+  }
+  if (val < -1) {
+    if (val < -10) {
+      return("Very Low")
+    }
+    return("Low")
+  }
+  return("Mean")
+}))
+
+scaled.order.avail <- scaled[,c(1, 2, 6, 8, 3, 4, 5, 7, 9, 10, 11)]
+scaled.order.retro <- scaled[,c(1, 9, 8, 2, 6, 3, 4, 5, 7, 10, 11)]
+df_melted = melt(scaled.order.avail, id.vars = c('Sample', 'starting_value'))
+ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = starting_value, group = Sample)) + scale_color_manual(values = c("#f22116", "#16f2b7", "#49f216", "#165ff2")) + theme(axis.text.x = element_text(angle = 90))+ ggtitle("Metrics compared over the available time (Start: A260/280)")
+
+df_melted = melt(scaled.order.retro, id.vars = c('Sample', 'starting_value'))
+ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = starting_value, group = Sample)) + scale_color_manual(values = c("#f22116", "#16f2b7", "#49f216", "#165ff2")) + theme(axis.text.x = element_text(angle = 90)) + ggtitle("Metrics compared over the origin time (Start: A260/280)")
+```
+
+
