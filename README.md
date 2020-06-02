@@ -1,11 +1,12 @@
 # Next Generation Sequencing Quality metric analysis
 
-The genetics department of the UMCG deals with all aspects of heredity, both in the field of patient care and scientific research. Approximately 15,000 genetic tests are run per year. For these analysis the UMCG makes use of next-generation sequencing (NGS) for diagnostics or research purposes. To ensure the quality of the tests, one metric, coverage, is used to validate the quality for a specific sample. 
+The genetics department of the UMCG deals with all aspects of heredity, both in the field of patient care and scientific research. Approximately 15,000 genetic tests are run per year. For these analysis the UMCG makes use of next-generation sequencing (NGS) for diagnostics or research purposes. To ensure the quality of the tests, very few metrics like the coverage, are used to validate the quality for a specific sample. We want to create a greater pool of metrics that we can use to asses the quality which we think will imporove the validity of a diagnostic result.
 
-Samples have lots of quality information that is produced during and after sequencing. This data might have a correlations with the success of analysis. We want to find the values that have effects on the quality and results so we can track these changes and for example inform about new methods that cause sudden changes to prevent unusable or bad results.
+The many steps in the NGS process provide us with lots of data, stored in different formats and locations, some are filled by laboratory technicians, others are produced by software tools and machines, and produced at different intervals in the process.
 
-The many steps in the process provide us with lots of data, stored in different formats and locations, some are filled by laboratory technicians, others are produced by software tools and machines, and produced at different intervals in the process. 
 ![NGS sequencing process](img/DataOriginDiagram.png "NGS sequencing process")
+
+By indexing the metrics produced in the proccess and assesing their correlations to eachother we hope to see multiple metrics that can inform for sample quality or reliability, possibly at a early stage in the proccess.
 
 ## Goal
 The goal of the project is to assess the different metrics produced at the intervals in the NGS process and identify metrics that can improve or supplement quality assesment at the different intervals
@@ -88,5 +89,6 @@ GNU Lesser General Public License v3.0. See `LICENSE` for more information.
 ## Contact
 
 Jouke Profijt - jouke.profijt@gmail.com
+
 Project - [link](https://github.com/jprofijt/analysis-metrics-prediction-display)
 
