@@ -5,6 +5,13 @@ import QualityParser as QP
 from indexRun import indexRun
 
 def indexProject(directory, database, projectID):
+    """Indexes and stores information in a project folder 
+
+    Parameters:
+    directory (string): project folder
+    database (DatabaseConnector): database connector class
+    projectID (string): ID to use for project
+   """
     runs = [o for o in os.listdir(directory) if os.path.isdir(os.path.join(directory,o))]
     
     for run in runs:
@@ -18,6 +25,15 @@ def indexProject(directory, database, projectID):
 
 
 def createQuickParser(args, description):
+    """Creates a argparser, with desired arguments
+
+    Parameters:
+    args (list): arguments to create
+
+    Returns:
+    argparse.ArgumentParser
+
+   """
     parser = argparse.ArgumentParser(description=description)
     for item in args:
         parser.add_argument(u"-{0}".format(item[0]), u"--{0}".format(item), type=unicode, required=True)
