@@ -1,0 +1,412 @@
+---
+title: "AnalysisLog"
+author: "Jouke Profijt"
+date: "6/2/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = '/Users/jouke/Projects/Analysis metrics/' )
+```
+
+```{r echo=FALSE}
+library(DBI)
+library(knitr)
+library(ggplot2)
+library(stringr)
+library(dplyr)
+# Retrieve DNA isolation and sample preparation data from supplied csv:
+prepData <- read.csv2("data/GokuVsVegeta/QXTData.csv", sep = "\t", header = F, dec = ",")
+colnames(prepData) <- c("SampleName", "Concentration", "A260_280", "A260_230", "ProcessStepId", "ExitDate", "ContainerPosition", "RequestId", "BatchId", "FinishedBy", "isFirstPriority", "FieldName", "DataType", "Value")
+
+
+# Retrieve parsed sample sheets from database file
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+samples <- dbReadTable(connection, "Samples")
+samples$DNA_numbers <- as.factor(apply(samples, 1, function(x) {
+  ids <- unlist(strsplit(x[1], "_"))
+  ids[3]
+  }))
+
+# Parse Sample capturing kit design number from sample ID
+samples$DesignNumber <- as.factor(apply(samples, 1, function(x) {
+  ids <- unlist(strsplit(x[1], "_"))
+  DN <- ids[6]
+  if (is.null(DN) | is.na(DN)) {
+    return(x["capturingKit"])
+  } else {
+    return(DN)
+  }
+  }))
+
+# only retrieve samples with a correct DNA identifier
+samples <- subset(samples, ((grepl("DNA\\d+", DNA_numbers) )))
+
+
+instruments <- function(row) {
+  # function to parse sequencer machine used for the sample using the sequencer id
+  x <- row["Sequencer"]
+  flowcell <- row["Flowcell"]
+  if (str_detect(x, regex("HWI-M[0-9]{4}$"))) {
+   return("MiSeq")
+ }
+  if (str_detect(x, regex("HWUSI"))) {
+   return("Genome Analyzer IIx")
+  }
+  if (str_detect(x, regex("M[0-9]{5}$"))) {
+   return("MiSeq")
+  }
+  if (str_detect(x, regex("HWI-C[0-9]{5}$"))) {
+   return("HiSeq 1500")
+  }
+  if (str_detect(x, regex("C[0-9]{5}$"))) {
+   return("HiSeq 1500")
+  }
+  if (str_detect(x, regex("HWI-D[0-9]{5}$"))) {
+   return("HiSeq 2500")
+  }
+  if (str_detect(x, regex("D[0-9]{5}$"))) {
+   return("HiSeq 2500")
+  }
+  if (str_detect(x, regex("J[0-9]{5}$"))) {
+   return("HiSeq 3000")
+  }
+  if (str_detect(x, regex("K[0-9]{5}$"))) {
+    return(check_flowcell(row))
+  }
+  if (str_detect(x, regex("E[0-9]{5}$"))) {
+   return("HiSeq X")
+  }
+  if (str_detect(x, regex("NB[0-9]{6}$"))) {
+   return("NextSeq")
+  }
+  if (str_detect(x, regex("NS[0-9]{6}$"))) {
+   return("NextSeq")
+  }
+  if (str_detect(x, regex("MN[0-9]{5}$"))) {
+   return("MiniSeq")
+  }
+  return(check_flowcell(row))
+}
+
+check_flowcell <- function(row) {
+  # secondary function to parse sequencer machine used for the sample using the flowcell id
+  x <- row["flowcell"]
+  if (str_detect(x, regex("C[A-Z,0-9]{4}ANXX$"))) { return("HiSeq 1500")}
+  if (str_detect(x, regex("C[A-Z,0-9]{4}ACXX$"))) { return("HiSeq 1000")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}ADXX$"))) { return("HiSeq 1500")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BCXX$"))) { return("HiSeq 1500")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BCXY$"))) { return("HiSeq 1500")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BBXX$"))) { return("HiSeq 4000")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BBXY$"))) { return("HiSeq 4000")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}CCXX$"))) { return("HiSeq X")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}CCXY$"))) { return("HiSeq X")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}ALXX$"))) { return("HiSeq X")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BGXX$"))) { return("NextSeq")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BGXY$"))) { return("NextSeq")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}BGX2$"))) { return("NextSeq")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}AFXX$"))) { return("NextSeq")}
+  if (str_detect(x, regex("A[A-Z,0-9]{4}$"))) { return("MiSeq")}
+  if (str_detect(x, regex("B[A-Z,0-9]{4}$"))) { return("MiSeq")}
+  if (str_detect(x, regex("D[A-Z,0-9]{4}$"))) { return("MiSeq")}
+  if (str_detect(x, regex("G[A-Z,0-9]{4}$"))) { return("MiSeq")}
+  if (str_detect(x, regex("H[A-Z,0-9]{4}DMXX$"))) { return("NovaSeq")}
+  return(row["Sequencer"]) # if no instrument type can be found, return the sequencer id to keep it destinguiasable
+
+}
+
+# format sample sheet information
+samples$Instrument <- apply(samples, 1, instruments)
+samples$startDate <- as.Date(samples$startDate)
+samples <- samples[order(samples$startDate),]
+
+
+# group sample into Not reinserted or Reinserted when they have been reused as identiefied by the DNA_number
+l <- list()
+v <- c()
+i <- 1
+for (DNA_number in samples$DNA_numbers) {
+  unique_combo <- paste0(DNA_number, samples$DesignNumber[i])
+  if (is.null(l[unique_combo][[1]])) {
+    l[unique_combo] <- i
+    v <- append(v, "Not Reinserted")
+  } else {
+    v[l[unique_combo][[1]]] <- "Reinserted"
+    v <- append(v, "Not Reinserted")
+    l[unique_combo] <- i
+  }
+  i <- i + 1
+}
+samples$Used <- as.factor(v)
+rm(v, l)
+
+# Retrieve Post-bam and Sequencing information from database
+## Sequencing: Runs, RunSummary & CD
+## Post-Bam: ASM, hs, InsertSizes, FL
+ASM <- dbReadTable(connection, "AlignmentSummaryMetrics")
+ASM <- ASM[ASM$Category == "PAIR",]
+hs <- dbReadTable(connection, "hsMetrics")
+InsertSizes <- dbReadTable(connection, "InsertSizes")
+RUNS <- dbReadTable(connection, "RUNS")
+RunSummary <- dbReadTable(connection, "RunSummary")
+res <- dbSendQuery(connection, "
+                  SELECT
+                  Samples.ID as SampleID,
+                  avg(Lanes.DensityMAX) as ClusterDensity,
+                  avg(Lanes.Q30) as Average_Q30,
+                  avg(Lanes.LegacyPhasing) as Phasing,
+                  avg(Lanes.LegacyPrePhasing) as PrePhasing,
+                  avg(Lanes.ClusterMAX) as ClusterPF
+                  FROM Samples 
+                  INNER JOIN RUNS ON Samples.Sequencer==RUNS.Sequencer AND Samples.Run==RUNS.Number AND Samples.startDate==RUNS.Date 
+                  INNER JOIN RunSummary ON RUNS.UniqueID==RunSummary.UniqueID
+                  INNER JOIN Lanes ON RUNS.UniqueID==Lanes.UniqueID
+                  GROUP BY Samples.ID
+                  ORDER BY RUNS.Date")
+CD <- dbFetch(res)
+FL <- dbReadTable(connection, "FlagstatMetrics")
+dbDisconnect(connection)
+RunSummary <- aggregate(RunSummary[, c(2:4, 6:7)], list(RunSummary$UniqueID), sum)
+
+
+# combine data into one
+RunMetrics <- left_join(RUNS, RunSummary, by = c("UniqueID" = "Group.1"))
+RunMetrics$Date <- as.Date(RunMetrics$Date)
+data <- left_join(RunMetrics, samples, by = c("Sequencer"= "Sequencer", "Number" = "run", "Date" = "startDate"))
+data <- left_join(data, CD, by = c("ID" = "SampleID"))
+data <- left_join(data, ASM, by = c("ID" = "SampleID"))
+data <- left_join(data, hs, by = c("ID" = "SampleID", "RunID.y" = "RunID"))
+data <- left_join(data, InsertSizes, by = c("ID" = "SampleID", "RunID.y" = "RunID"))
+data <- left_join(data, FL, by = c("ID" = "SampleID", "RunID.y" = "RunID"))
+
+data$Used <- as.factor(data$Used)
+data$Instrument <- as.factor(data$Instrument)
+dbDisconnect(connection)
+rm(ASM,hs,InsertSizes,FL,CD,RunMetrics, RUNS, RunSummary, samples, res, connection, DNA_number, i, unique_combo, v, check_flowcell, instruments)
+
+# omit na values
+data2 <- na.omit(data)
+Numeric_data <- subset(data2, select = -c(UniqueID,RunID.x, Number, Instrument,Flowcell, Sequencer, Date, flowcell, project, capturingKit, DNA_numbers, DesignNumber, RunID.y, Category, PairOrientation, ID, BaitSet, Used))
+Numeric_data <- as.data.frame(apply(Numeric_data, 2, as.numeric))
+variance.data <- apply(Numeric_data, 2, var)
+
+# Remove columns with 0 varance, as they do not provide any usable information
+Numeric_data <- Numeric_data %>% select(names(variance.data[variance.data != 0])) 
+head(Numeric_data)
+```
+
+
+```{r echo=FALSE}
+length(Numeric_data$Yield) == sum(Numeric_data$Yield == Numeric_data$ProjectedYield)
+```
+Yield and Projected yield are the same in our instance so Projected yield will be removed from the data
+
+```{r}
+Numeric_data <- Numeric_data %>% select(!ProjectedYield)
+head(Numeric_data)
+```
+Q30 is a percentage, so it should not be 380. In this instance we will be using Average_Q30
+
+```{r}
+Numeric_data <- Numeric_data %>% select(!Q30)
+head(Numeric_data)
+```
+
+
+# Sequencing metrics(interop) correlation heatmaps to Post-bam Metrics
+
+## Alignment Summary Metrics
+```{r}
+library(reshape2)
+interop <- Numeric_data %>% select(Yield, Aligned, Intensity, ClusterDensity, Average_Q30, Phasing, PrePhasing, ClusterPF)
+ASM <- Numeric_data %>% select(TotalReads.x, PFreads.x, PFaligned, PFalignedBases, PFHQmedianMismatches, PFmismatchRate, PFHQErrorRate, PFindelRate, MeanReadLenght, ReadsAllignedInPairs, StrandBalance, ChimerasPercentage, AdapterPercentage)
+
+
+corMat <- round(cor(x=interop, y=ASM, method = "spearman", use = "complete.obs"), 2)
+
+
+
+ASM.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ theme(legend.position = "none") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Alignment Summary Metrics") + ggtitle("Interop vs Alignemnt Summary Metrics")
+
+ASM.cor.heatmap
+rm(ASM, corMat, ASM.cor.heatmap)
+```
+Observations:
+* Yield impacts many metrics that are related to the amount of reads produced.
+* Aligned (The percentage of reads that align to the PhiX genome)
+  * positivly impacts the Adapter sequencers percentage
+  * positivly impacts the chimeras percentage
+  * negativly impacts the Strand balance
+* Intensity could have an negative effect on Error Rates/mismatch rates
+* Q30
+  * could have an negative effect on Error Rates/mismatch rates
+  * could have an negative effect on Chimeras percentage and Strand balance
+* Phasing
+  * Positive impact on Error rate/mismatch rate
+* PrePhasing
+  * Positive impact on error RAte/mismatch rate
+* ClusterPf (Clusters passing filter)
+  * Negative impact on Error Rate/Mismatch rate
+  
+Interesting metrics:
+  * Chimeras Percentage: might suggest sample contamination
+  * Mismatch/Error rate: changes might suggest lower quality & has many ivluencing metrics
+  
+
+## HS Metrics
+
+```{r}
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+hsm <- dbListFields(connection, "hsMetrics")
+hsm <- hsm[hsm %in% names(Numeric_data)]
+HS <- Numeric_data %>% select(hsm)
+HS1 <- HS[1:10]
+corMat <- round(cor(x=HS1, y=interop, method = "spearman", use = "complete.obs"), 2)
+
+
+
+hs.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + xlab("Hs Metrics") + ylab("Interop") + ggtitle("Interop vs hs metrics 1")
+
+hs.cor.heatmap
+```
+Observations:
+* ClusterDensity 
+  *Negitavly affects the size of the terretories, which is expected
+  *Positivly Affects the MeanBaitCoverage, MeanTargetCoverage, and MedianTargetCoverage
+* ClusterPF
+  * Negativly affects MeanBaitCoverage and MeanTargetCoverage
+  
+
+```{r}
+HS2 <- HS[11:20]
+corMat <- round(cor(x=HS2, y=interop, method = "spearman", use = "complete.obs"), 2)
+
+
+
+hs.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + xlab("Hs Metrics") + ylab("Interop") + ggtitle("Interop vs hs metrics 2")
+
+hs.cor.heatmap
+```
+Observations:
+* ClusterDensity
+  * Negitivly affects the ExcBaseQPct(fraction of aligned bases that were filtered out becouse of low quality)
+  * positivly affects the TargetBases with 1X & 2X or greater coverage
+* Aligned
+  * Negativly affects the ExcDupePCT, or the fraction of aligned bases taht were filtered out because they were in reads marked as duplicate
+  * Positivly affects the ExcMapQPct, or the fraction of aligned bases that were filtered out because they were in reads with low mapping quality
+```{r}
+HS3 <- HS[21:30]
+corMat <- round(cor(x=HS3, y=interop, method = "spearman", use = "complete.obs"), 2)
+
+
+
+hs.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + xlab("Hs Metrics") + ylab("Interop") + ggtitle("Interop vs hs metrics 3")
+
+hs.cor.heatmap
+```
+Observations:
+The target coverage metrics seem to vary in the same way, as do the hsPenalty metrics (hybrid selection penalty)
+```{r}
+HS4 <- HS[31:35]
+corMat <- round(cor(x=HS4, y=interop, method = "spearman", use = "complete.obs"), 2)
+
+
+
+hs.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + xlab("Hs Metrics") + ylab("Interop") + ggtitle("Interop vs hs metrics 4")
+
+hs.cor.heatmap
+```
+
+Observations:
+The ClusterDensity seems to affect the sesnitifty to detect Hetrozygous SNPs and the Hetrozygous SNP sensitifity scaled to th e Qscore in a positive way.
+
+## Insert Size metrics
+
+```{r}
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+ISM <- dbListFields(connection, "InsertSizes")
+ISM <- ISM[ISM %in% names(Numeric_data)]
+IS <- Numeric_data %>% select(ISM)
+
+corMat <- round(cor(x=interop, y=IS, method = "spearman", use = "complete.obs"), 2)
+
+
+
+IS.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Insert Size Metrics") + theme(legend.position = "none") + ggtitle("Interop vs InsertSize metrics")
+
+IS.cor.heatmap
+```
+Observations:
+* MedianSize which is the representative Insert size metric for a sample:
+  * might be negativly affected by the aligned metric
+  No big influencers it seems.
+  
+## FLagstat Metrics
+
+```{r}
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
+FLM <- dbListFields(connection, "FlagstatMetrics")
+FLM <- FLM[FLM %in% names(Numeric_data)]
+FL <- Numeric_data %>% select(FLM)
+
+corMat <- round(cor(x=FL, y=interop, method = "spearman", use = "complete.obs"), 2)
+
+
+
+fl.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + xlab("FlagStat metrics") + ylab("Interop") + ggtitle("Correlations between Interop vs hs metrics")
+
+fl.cor.heatmap
+```
+Observations:
+* Q30 & ClusterPF seem to have a large positive impact on the percentage of mapped reads, And the Singletons percentage, which are rare variants of genetic variation
+* Phasing & Prephasing seem to negativly impact the mapped percentage
