@@ -11,9 +11,27 @@ import argparse
 import datetime
 
 def dateParser(dateString):
+    """Parses date string
+
+    Parameters:
+    dateString (string): date to convert
+
+    Returns:
+    date class
+
+   """
     return datetime.datetime.strptime(dateString, "%y%m%d").date()
 
 def parseRun(xml):
+    """Parses sequencing run XML data
+
+    Parameters:
+    xml (string): path to xml file
+
+    Returns:
+    SequencingRun datatype
+
+   """
     tree = ET.parse(xml)
 
     root = tree.getroot()
@@ -27,7 +45,17 @@ def parseRun(xml):
     return QP.SequencingRun(run.attrib["Id"], run.attrib["Number"], FlowCell.text, Sequencer.text, dateParser(Date.text.strip()))
     
 def parseInteropSummary(interop, summaryApplication):
-    summary = subprocess.check_output([summaryApplication, interop, '--level=3', '--csv=1']).split('\n')
+    """Calls and parses interop summary application
+
+    Parameters:
+    interop (string): path to interop folder containing binary files
+    summaryApplication (string): path to summary application executable
+
+    Returns:
+    list of summaries, and lanes collected
+
+   """
+    summary = subprocess.check_output([summaryApplication, interop, '--level=3', '--csv=1']).split('\n') # level=3=detailed information, but not maximum detail(level=4, contains reverse and forward read separate)
     counter = 0
     stored = []
     lanes = []
@@ -87,6 +115,15 @@ def parseInteropSummary(interop, summaryApplication):
 
 
 def insertToDB(runInfo, summarys, lanes, database):
+    """Inserts information to database
+
+    Parameters:
+    runInfo (SequencingRun): Sequencing run data class
+    summarys (list): list of summaries to store
+    lanes (list): list of lane information to store
+    database (databaseConnector): database connector class
+
+   """
     RunID = database.addSequencingRun(runInfo)
     for summary in summarys:
         database.addRunSummary(RunID, summary)
@@ -95,6 +132,15 @@ def insertToDB(runInfo, summarys, lanes, database):
     
 
 def createQuickParser(args, description):
+    """Creates a argparser, with desired arguments
+
+    Parameters:
+    args (list): arguments to create
+
+    Returns:
+    argparse.ArgumentParser
+
+   """
     parser = argparse.ArgumentParser(description=description)
     for item in args:
         parser.add_argument(u"-{0}".format(item[0]), u"--{0}".format(item), type=unicode, required=True)
@@ -102,6 +148,15 @@ def createQuickParser(args, description):
     return parser
 
 def splitInteropType(string):
+    """ splits a 'datapoint +/- datapoint' to min and max
+
+    Parameters:
+    string (string): 'datapoint +/- datapoint' to parse
+
+    Returns:
+    + and - value
+
+   """
     split = string.split("+/-")
     d = {
         "min": split[1].strip(),
