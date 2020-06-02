@@ -4,6 +4,14 @@ from datetime import datetime
 import QualityParser as QP
 
 def indexRun(runDir, runID, database):
+    """Executes the correct parser to use for each file in a run folder 
+
+    Parameters:
+    runDir (string): run folder
+    runID (string): ID to use for run
+    database (DatabaseConnector): database connector class
+    
+   """
     for filename in os.listdir(runDir):
         fullpath = os.path.join(runDir, filename)
         splitFilename = filename.split(".")
@@ -30,9 +38,28 @@ def indexRun(runDir, runID, database):
             addExceptionLog(database, filetype, sampleID, runID, str(e))
 
 def addExceptionLog(database, type, sample, run, exception):
+    """Adds a log element to the database for exceptions
+
+    Parameters:
+    database (DatabaseConnector): database connector class
+    type (string): File type that gave exception
+    sample (string): sample where exception occeured
+    run (string): run where exception occeured
+    exception (Exception): Exception that occeured
+
+   """
     database.addEntry('LOG', (datetime.now(), sample, run, "Failed Parsing {0}. Error:{1}".format(type, exception)))
 
 def createQuickParser(args, description):
+    """Creates a argparser, with desired arguments
+
+    Parameters:
+    args (list): arguments to create
+
+    Returns:
+    argparse.ArgumentParser
+
+   """
     parser = argparse.ArgumentParser(description=description)
     for item in args:
         parser.add_argument(u"-{0}".format(item[0]), u"--{0}".format(item), type=unicode, required=True)
