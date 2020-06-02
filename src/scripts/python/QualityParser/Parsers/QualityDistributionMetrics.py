@@ -38,6 +38,15 @@ def parseArguments():
 
 
 def parseQDM(qd, input):
+    """Parses Quality distribution metrics file, per quality bin
+
+    Parameters:
+    qd (QualityDistribution): Quality Distribution class to add bins to
+    input (string): Quality distribution file path
+
+    Returns:
+    QualityDistribution: class to hold quality bins
+   """
     with open(input, u'r') as qdm:
         reader = csv.DictReader(decomment(qdm), delimiter="\t")
         for row in reader:
@@ -45,6 +54,13 @@ def parseQDM(qd, input):
     return qd
 
 def writeToCsv(qd, output):
+    """Writes Quality distribution to csv
+
+    Parameters:
+    qd (QualityDistribution): Quality distribution class
+    output (string): path to output csv
+    
+   """
     openType = u'ab'
     if not os.path.exists(output):
         openType = u'wb'
@@ -54,6 +70,13 @@ def writeToCsv(qd, output):
         csv.writer(csvFile).writerow(row)
 
 def writeToDB(qd, database):
+    """Inserts Quality Distribution data into database
+
+    Parameters:
+    qd (QualityDistribution): Quality distribution class
+    database (databaseConnector): database connector
+    
+   """
     database.addQualityDistribution(qd)
 def main():
     args = parseArguments()

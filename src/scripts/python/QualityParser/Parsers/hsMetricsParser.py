@@ -6,6 +6,17 @@ from ..DataTypes.hsMetrics import hsMetric
 from ..DataBase.SQLiteDatabaseConnector import sqlite3Database as DataBase
 
 def parseHsMetricsFile(file, sampleID, RunID):
+    """Parses hsMetrics file
+
+    Parameters:
+    file (string): hsMetrics file path
+    sampleID (string): sample ID
+    RunID (string): Run ID
+
+    Returns:
+    List:parsed hsMetrics information
+
+   """
     with open(file, u"r") as hsFile:
         output = []
         head = [next(hsFile) for x in range(9)]
@@ -70,6 +81,13 @@ def parseHsMetricsFile(file, sampleID, RunID):
     return output
 
 def insertToDB(HSlist, database):
+     """Inserts hsMetrics data into database
+
+    Parameters:
+    HSList (List): List of rows to add
+    database (databaseConnector): database connector
+    
+   """
     for HS in HSlist:
         database.addHsMetric(HS)
 

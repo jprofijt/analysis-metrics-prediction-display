@@ -9,6 +9,17 @@ from ..DataBase.SQLiteDatabaseConnector import sqlite3Database as DataBase
 
 
 def parseAlignmentSummaryMetirics(file, sampleID, runID):
+     """Parses AlignmentSummaryMetrics files
+
+        Parameters:
+        file (string): file to parse
+        sampleID (string): sampleID for file
+        runID (string): runID to which the sample and file belongs
+
+        Returns:
+        ListOfEntries (List): List of AlignmentSummaryMetrics objects
+
+    """
     output = []
     with open(file, u'r') as ASM:
         reader = csv.DictReader(decomment(ASM), delimiter='\t')
@@ -43,6 +54,13 @@ def parseAlignmentSummaryMetirics(file, sampleID, runID):
 
 
 def insertToDB(listOfEntries, database):
+     """Adds an ASM entry to the database
+
+            Parameters:
+            ListofEntries (List): List of AlignmentSummaryMetrics objects
+            database (databaseConnector): database connector
+
+        """
     for ASM in listOfEntries:
         database.addAlignmentSummaryEntry(ASM)
 

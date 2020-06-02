@@ -6,6 +6,17 @@ from ..DataTypes.QualityPerCycle import QualityPerCycle
 from ..DataBase.SQLiteDatabaseConnector import sqlite3Database as DataBase
 
 def parseQBCFile(file, sampleID, RunID):
+     """Parses Quality by cycle file
+
+    Parameters:
+    file (string): Quality by cycle file path
+    sampleID (string): sample ID
+    RunID (string): Run ID
+
+    Returns:
+    QualtiyPerCycle:Parsed information class
+
+   """
     with open(file, u"r") as QBCFile:
         cycles = []
         quality = []
@@ -17,6 +28,13 @@ def parseQBCFile(file, sampleID, RunID):
     return QualityPerCycle(sampleID, RunID, cycles, quality)
 
 def insertToDB(QBC, database):
+     """Inserts Quality By cycle data into database
+
+    Parameters:
+    QBC (QualityPerCycle): QBC data to add
+    database (databaseConnector): database connector
+    
+   """
     database.addQualityByCycle(QBC)
 
 def main():

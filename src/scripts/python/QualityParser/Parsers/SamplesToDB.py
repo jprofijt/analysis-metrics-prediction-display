@@ -6,6 +6,14 @@ from .Samples import parseArguments, parseSampleSheet, copyToFailed
 from ..DataBase.SQLiteDatabaseConnector import sqlite3Database as DataBase
 
 def IndexSamplesToDB(sampleSheet, database, failDirectory):
+    """Inserts samplesheets to the database
+
+    Parameters:
+    sampleSheet (string): path to samplesheet
+    database (databaseConnector): database connector
+    failDirectory (string): path to send failed samplesheet for further manual inspection
+    
+   """
     try:
         samples = parseSampleSheet(sampleSheet)
         for sample in samples:

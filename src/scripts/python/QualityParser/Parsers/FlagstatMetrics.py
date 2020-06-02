@@ -12,6 +12,16 @@ class IncompatibleFlagstatFile(Exception):
 
 
 def parseFlagstatRow(row, outputList):
+    """parses a row of a flagstat file
+
+    Parameters:
+    row (string): row in file
+    outputList (list): list to append result
+
+    Returns:
+    list:outputList
+
+   """
     split = row.split(" ")
     outputList.append(split[0])
     outputList.append(split[2])
@@ -22,6 +32,17 @@ def parseFlagstatRow(row, outputList):
 
 
 def parseFlagstatFile(file, sampleID, RunID):
+    """parses flagstat file
+
+    Parameters:
+    file (string): flagstat file path
+    sampleID (string): sample id
+    RunID (string): Run ID
+
+    Returns:
+    FlagstatMetric:gathered flagstat file data
+
+   """
     output = []
     with open(file, u'r') as flagstatFile:
         for row in flagstatFile:

@@ -6,6 +6,17 @@ from ..DataTypes.InsertSizeMetric import InsertSizeMetric
 from ..DataBase.SQLiteDatabaseConnector import sqlite3Database as DataBase
 
 def parseInserSizeMetricsFile(file, sampleID, RunID):
+     """Parses insert size Metrics file
+
+    Parameters:
+    file (string): insert size metrics file path
+    sampleID (string): sample ID
+    RunID (string): Run ID
+
+    Returns:
+    List:parsed insert size metrics information
+
+   """
     with open(file, u"r") as InsertSizeFile:
         output = []
         head = [next(InsertSizeFile) for x in range(8)]
@@ -38,6 +49,13 @@ def parseInserSizeMetricsFile(file, sampleID, RunID):
     return output
 
 def insertToDB(ISlist, database):
+     """Inserts Insert Size data into database
+
+    Parameters:
+    ISList (List): List of rows to add
+    database (databaseConnector): database connector
+    
+   """
     for IS in ISlist:
         database.addInsertSizeEntry(IS)
 

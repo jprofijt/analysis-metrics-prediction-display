@@ -6,6 +6,17 @@ from ..DataTypes.gcBias import gcBias
 from ..DataBase.SQLiteDatabaseConnector import sqlite3Database as DataBase
 
 def parseGcBiasFile(file, sampleID, RunID):
+    """Parses gc bias file
+
+    Parameters:
+    file (string): GC bias file path
+    sampleID (string): sample ID
+    RunID (string): Run ID
+
+    Returns:
+    List:parsed gc bias information
+
+   """
     with open(file, u"r") as gcBiasFile:
         output = []
         reader = csv.DictReader(decomment(gcBiasFile), delimiter="\t")
@@ -26,6 +37,13 @@ def parseGcBiasFile(file, sampleID, RunID):
     return output
 
 def insertToDB(gcList, database):
+    """Inserts gcBias data into database
+
+    Parameters:
+    gcList (List): List of rows to add
+    database (databaseConnector): database connector
+    
+   """
     for gc in gcList:
         database.addGCbiasEntry(gc)
 
