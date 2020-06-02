@@ -12,30 +12,50 @@ class sqlite3Database(databaseConnectorInterface):
         self.cursor = self.connection.cursor()
     
     def addEntry(self, Table, Row):
+        """Adds an entry to the database
+
+            Parameters:
+            Table (string): table identifier
+            Row (string): items to add to table
+
+        """
         self.cursor.execute("INSERT INTO {0} VALUES (?{1})".format(Table, (len(Row) - 1) * ',?'), Row)
         self.connection.commit()
 
     def addLargeEntry(self, Table, RowList):
+         """Adds multiple entries to the database
+
+            Parameters:
+            Table (string): table identifier
+            RowList (List): items to add to table
+
+        """
         self.cursor.executemany("INSERT INTO {0} VALUES (?{1})".format(Table, (len(RowList[0]) - 1) * ',?'), RowList)
         self.connection.commit()
 
     def addSample(self, sample):
-        self.cursor.execute("SELECT ID FROM Projects WHERE ID=?", (sample.Project,))
+         """Adds an sample to the database
+
+            Parameters:
+            sample(sample): sample to insert 
+
+        """
+        self.cursor.execute("SELECT ID FROM Projects WHERE ID=?", (sample.Project,)) # gets the project id
         projects = self.cursor.fetchall()
 
-        if len(projects) == 0:
+        if len(projects) == 0: # if it doesnt exist add the project
             self.addProject(sample.Project)
         
-        self.cursor.execute("SELECT ID FROM Sequencers WHERE ID = ?", (sample.Sequencer,))
+        self.cursor.execute("SELECT ID FROM Sequencers WHERE ID = ?", (sample.Sequencer,)) # retrieves the sequencer used if it exists
         sequencerQuery = self.cursor.fetchall()
 
-        if len(sequencerQuery) == 0:
+        if len(sequencerQuery) == 0: # if not add to database
             self.addSequencer(sample.Sequencer)
         
-        self.cursor.execute("SELECT ID FROM CapturingKits WHERE ID = ?", (sample.CapturingKit,))
+        self.cursor.execute("SELECT ID FROM CapturingKits WHERE ID = ?", (sample.CapturingKit,)) # retrieves the capturing kits used
         capturingKits = self.cursor.fetchall()
 
-        if len(capturingKits) == 0:
+        if len(capturingKits) == 0: # if non existing add to database
             self.addCapturingKit(sample.CapturingKit)
         
         try:
@@ -53,6 +73,14 @@ class sqlite3Database(databaseConnectorInterface):
         return 0
 
     def addCapturingKit(self, id, startDate=u'NULL', endDate=u'NULL'):
+         """Adds an capturing kit to the database
+
+            Parameters:
+            id (string): capturing kit id
+            startDate (date): start usage date
+            endDate (date): end usage date
+
+        """
         self.addEntry("CapturingKits", (id,str(startDate), str(endDate)))
         return 0
 
