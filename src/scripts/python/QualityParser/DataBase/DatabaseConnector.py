@@ -4,6 +4,7 @@ from ..DataTypes.QualityPerCycle import QualityPerCycle
 from ..DataTypes.gcBias import gcBias
 
 class databaseConnectorInterface(object):
+    """Database connector interface for multiple database type support"""
     def addSequencingRun(self, run):
         raise NotImplementedError
     
