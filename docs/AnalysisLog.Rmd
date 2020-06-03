@@ -11,23 +11,44 @@ knitr::opts_knit$set(root.dir = '/Users/jouke/Projects/Analysis metrics/' )
 ```
 
 ```{r echo=FALSE}
-library(DBI)
-library(knitr)
-library(ggplot2)
 library(stringr)
 library(dplyr)
+
+
 # Retrieve DNA isolation and sample preparation data from supplied csv:
 prepData <- read.csv2("data/GokuVsVegeta/QXTData.csv", sep = "\t", header = F, dec = ",")
 colnames(prepData) <- c("SampleName", "Concentration", "A260_280", "A260_230", "ProcessStepId", "ExitDate", "ContainerPosition", "RequestId", "BatchId", "FinishedBy", "isFirstPriority", "FieldName", "DataType", "Value")
 
+prepData.pur <- prepData %>% select(SampleName, A260_230, A260_280)
 
+prepData.pur <- distinct(prepData.pur)
+
+# format DNA number
+prepData.pur$SampleName <- apply(prepData.pur, 1, function(x) {
+  str_remove(x[1], "-")
+})
+
+prepData.pur$A260_230 <- apply(prepData.pur, 1, function(x) {
+  as.numeric(sub(",", ".", x[2], fixed = TRUE))
+})
+
+prepData.pur$A260_280 <- apply(prepData.pur, 1, function(x) {
+  as.numeric(sub(",", ".", x[3], fixed = TRUE))
+})
+head(prepData.pur)
+```
+
+```{r}
+library(DBI)
+library(stringr)
 # Retrieve parsed sample sheets from database file
 connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
 samples <- dbReadTable(connection, "Samples")
+dbDisconnect(connection)
 samples$DNA_numbers <- as.factor(apply(samples, 1, function(x) {
   ids <- unlist(strsplit(x[1], "_"))
   ids[3]
-  }))
+}))
 
 # Parse Sample capturing kit design number from sample ID
 samples$DesignNumber <- as.factor(apply(samples, 1, function(x) {
@@ -140,10 +161,15 @@ for (DNA_number in samples$DNA_numbers) {
 }
 samples$Used <- as.factor(v)
 rm(v, l)
+head(samples)
+```
 
+```{r}
+library(dplyr)
 # Retrieve Post-bam and Sequencing information from database
 ## Sequencing: Runs, RunSummary & CD
 ## Post-Bam: ASM, hs, InsertSizes, FL
+connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
 ASM <- dbReadTable(connection, "AlignmentSummaryMetrics")
 ASM <- ASM[ASM$Category == "PAIR",]
 hs <- dbReadTable(connection, "hsMetrics")
@@ -169,11 +195,12 @@ FL <- dbReadTable(connection, "FlagstatMetrics")
 dbDisconnect(connection)
 RunSummary <- aggregate(RunSummary[, c(2:4, 6:7)], list(RunSummary$UniqueID), sum)
 
-
 # combine data into one
 RunMetrics <- left_join(RUNS, RunSummary, by = c("UniqueID" = "Group.1"))
 RunMetrics$Date <- as.Date(RunMetrics$Date)
 data <- left_join(RunMetrics, samples, by = c("Sequencer"= "Sequencer", "Number" = "run", "Date" = "startDate"))
+
+data <- left_join(prepData.pur, data, by = c("SampleName" = "DNA_numbers") )
 data <- left_join(data, CD, by = c("ID" = "SampleID"))
 data <- left_join(data, ASM, by = c("ID" = "SampleID"))
 data <- left_join(data, hs, by = c("ID" = "SampleID", "RunID.y" = "RunID"))
@@ -183,44 +210,92 @@ data <- left_join(data, FL, by = c("ID" = "SampleID", "RunID.y" = "RunID"))
 data$Used <- as.factor(data$Used)
 data$Instrument <- as.factor(data$Instrument)
 dbDisconnect(connection)
-rm(ASM,hs,InsertSizes,FL,CD,RunMetrics, RUNS, RunSummary, samples, res, connection, DNA_number, i, unique_combo, v, check_flowcell, instruments)
+rm(ASM,hs,InsertSizes,FL,CD,RunMetrics, RUNS, RunSummary, res, connection, DNA_number, i, unique_combo, v, check_flowcell, instruments)
 
 # omit na values
 data2 <- na.omit(data)
-Numeric_data <- subset(data2, select = -c(UniqueID,RunID.x, Number, Instrument,Flowcell, Sequencer, Date, flowcell, project, capturingKit, DNA_numbers, DesignNumber, RunID.y, Category, PairOrientation, ID, BaitSet, Used))
-Numeric_data <- as.data.frame(apply(Numeric_data, 2, as.numeric))
-variance.data <- apply(Numeric_data, 2, var)
 
-# Remove columns with 0 varance, as they do not provide any usable information
-Numeric_data <- Numeric_data %>% select(names(variance.data[variance.data != 0])) 
-head(Numeric_data)
+complete.data <- data.frame(data2[c(1,4:9,15:21, 27,28,47,103)], apply(data2[c(2,3,10:14,22:26, 29:46, 48:102, 104:142)], 2, as.numeric))
+
+variance.data <- apply(complete.data[19:142], 2, var)
+
+# Remove nummeric columns with 0 varance, as they do not provide any usable information
+complete.data.var <- complete.data %>% select(c(names(complete.data[1:18]), names(variance.data[variance.data != 0])))
+head(complete.data.var)
 ```
 
 
 ```{r echo=FALSE}
-length(Numeric_data$Yield) == sum(Numeric_data$Yield == Numeric_data$ProjectedYield)
+length(complete.data.var$Yield) == sum(complete.data.var$Yield == complete.data.var$ProjectedYield)
 ```
 Yield and Projected yield are the same in our instance so Projected yield will be removed from the data
 
 ```{r}
-Numeric_data <- Numeric_data %>% select(!ProjectedYield)
-head(Numeric_data)
+length(complete.data.var$TotalReads.x) == sum(complete.data.var$TotalReads.x == complete.data.var$TotalReads.y)
 ```
-Q30 is a percentage, so it should not be 380. In this instance we will be using Average_Q30
+Total reads is duplicated so we remove 1 of the two columns.
 
 ```{r}
-Numeric_data <- Numeric_data %>% select(!Q30)
-head(Numeric_data)
+length(complete.data.var$TotalReads.x) == sum(complete.data.var$TotalReads.x == complete.data.var$PFreads.x)
+```
+```{r}
+length(complete.data.var$TotalReads.x) == sum(complete.data.var$TotalReads.y == complete.data.var$PFreads.y)
+```
+The number of reads passing filter is always equal to The total reads, and is also duplicated
+
+```{r}
+length(complete.data.var$TotalReads.x) == sum(complete.data.var$Read1Pass == complete.data.var$Read2Pass)
+```
+Duplicated Read 1 & read 2 always have the same pass count for the flagstat metrics
+
+
+lastly Q30 is a percentage and should not exceed 100%, we can use average Q30 per lane instead.
+
+```{r}
+complete.data.edit <- complete.data.var %>% select(!c(ProjectedYield, Q30, Read2Pass, TotalReads.y, PFreads.x, PFreads.y, BaitSet, Category, PairOrientation)) # bait set has 1 level, as do Category and PairOrientation
 ```
 
+
+```{r}
+str(complete.data.edit)
+```
+
+This leaves us with a dataset of 6960 samples, with 106 variables.
+
+# Preparation metrics vs Sequencing Metrics
+
+```{r}
+library(reshape2)
+library(ggplot2)
+interop <- complete.data.edit %>% select(Yield, Aligned, Intensity, ClusterDensity, Average_Q30, Phasing, PrePhasing, ClusterPF)
+puritys <- complete.data.edit %>% select(A260_230, A260_280)
+
+corMat <- round(cor(x=interop, y=puritys, method = "spearman", use = "complete.obs"), 2)
+
+
+
+pur.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile(colour = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Spearman\nCorrelation") + 
+  theme_minimal()+ theme(legend.position = "none") + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("DNA preparation metrics") + ggtitle("Interop vs DNA purities")
+
+pur.cor.heatmap
+rm(puritys, corMat, pur.cor.heatmap)
+```
+Observation:
+* There does not seem to be correlations with dna puritys and Sequencing metrics.
 
 # Sequencing metrics(interop) correlation heatmaps to Post-bam Metrics
 
 ## Alignment Summary Metrics
 ```{r}
 library(reshape2)
-interop <- Numeric_data %>% select(Yield, Aligned, Intensity, ClusterDensity, Average_Q30, Phasing, PrePhasing, ClusterPF)
-ASM <- Numeric_data %>% select(TotalReads.x, PFreads.x, PFaligned, PFalignedBases, PFHQmedianMismatches, PFmismatchRate, PFHQErrorRate, PFindelRate, MeanReadLenght, ReadsAllignedInPairs, StrandBalance, ChimerasPercentage, AdapterPercentage)
+
+ASM <- complete.data.edit %>% select(TotalReads.x, PFaligned, PFalignedBases, PFHQmedianMismatches, PFmismatchRate, PFHQErrorRate, PFindelRate, MeanReadLenght, ReadsAllignedInPairs, StrandBalance, ChimerasPercentage, AdapterPercentage)
 
 
 corMat <- round(cor(x=interop, y=ASM, method = "spearman", use = "complete.obs"), 2)
@@ -266,8 +341,9 @@ Interesting metrics:
 ```{r}
 connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
 hsm <- dbListFields(connection, "hsMetrics")
-hsm <- hsm[hsm %in% names(Numeric_data)]
-HS <- Numeric_data %>% select(hsm)
+hsm <- hsm[hsm %in% names(complete.data.edit)]
+HS <- complete.data.edit %>% select(hsm)
+HS
 HS1 <- HS[1:10]
 corMat <- round(cor(x=HS1, y=interop, method = "spearman", use = "complete.obs"), 2)
 
@@ -361,9 +437,8 @@ The ClusterDensity seems to affect the sesnitifty to detect Hetrozygous SNPs and
 ```{r}
 connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
 ISM <- dbListFields(connection, "InsertSizes")
-ISM <- ISM[ISM %in% names(Numeric_data)]
-IS <- Numeric_data %>% select(ISM)
-
+ISM <- ISM[ISM %in% names(complete.data.edit)]
+IS <- complete.data.edit %>% select(ISM)
 corMat <- round(cor(x=interop, y=IS, method = "spearman", use = "complete.obs"), 2)
 
 
@@ -389,8 +464,8 @@ Observations:
 ```{r}
 connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
 FLM <- dbListFields(connection, "FlagstatMetrics")
-FLM <- FLM[FLM %in% names(Numeric_data)]
-FL <- Numeric_data %>% select(FLM)
+FLM <- FLM[FLM %in% names(complete.data.edit)]
+FL <- complete.data.edit %>% select(FLM)
 
 corMat <- round(cor(x=FL, y=interop, method = "spearman", use = "complete.obs"), 2)
 
