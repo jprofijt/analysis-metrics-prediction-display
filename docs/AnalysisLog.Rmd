@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_knit$set(root.dir = '/Users/jouke/Projects/Analysis metrics/' )
 ```
 
+# 1. Data preparation
 ```{r echo=FALSE}
 library(stringr)
 library(dplyr)
@@ -262,7 +263,9 @@ str(complete.data.edit)
 
 This leaves us with a dataset of 6960 samples, with 106 variables.
 
-# Preparation metrics vs Sequencing Metrics
+# 2. Correlation analysis
+
+## Preparation metrics vs Sequencing Metrics
 
 ```{r}
 library(reshape2)
@@ -294,6 +297,7 @@ Observation:
 ## Alignment Summary Metrics
 ```{r}
 library(reshape2)
+library(Hmisc)
 
 ASM <- complete.data.edit %>% select(TotalReads.x, PFaligned, PFalignedBases, PFHQmedianMismatches, PFmismatchRate, PFHQErrorRate, PFindelRate, MeanReadLenght, ReadsAllignedInPairs, StrandBalance, ChimerasPercentage, AdapterPercentage)
 
@@ -301,18 +305,23 @@ ASM <- complete.data.edit %>% select(TotalReads.x, PFaligned, PFalignedBases, PF
 corMat <- round(cor(x=interop, y=ASM, method = "spearman", use = "complete.obs"), 2)
 
 
-
 ASM.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fill=value)) + 
   geom_tile(colour = "white") +
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
                        midpoint = 0, limit = c(-1,1), space = "Lab", 
                        name="Spearman\nCorrelation") + 
-  theme_minimal()+ theme(legend.position = "none") + 
+  theme_minimal()+ 
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
                                    size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Alignment Summary Metrics") + ggtitle("Interop vs Alignemnt Summary Metrics")
 
 ASM.cor.heatmap
-rm(ASM, corMat, ASM.cor.heatmap)
+ggsave(
+  "Alignment_Summary_Metrics_heatmap.png",
+  plot = ASM.cor.heatmap,
+  dpi = 300,
+  limitsize = TRUE,
+)
+rm(corMat, ASM.cor.heatmap)
 ```
 Observations:
 * Yield impacts many metrics that are related to the amount of reads produced.
@@ -335,7 +344,75 @@ Interesting metrics:
   * Chimeras Percentage: might suggest sample contamination
   * Mismatch/Error rate: changes might suggest lower quality & has many ivluencing metrics
   
+```{r}
+res2 <- rcorr(as.matrix(data.frame(interop, ASM)), type = "spearman")
+# Aligned positivly impacts the Adapter sequencers percentage
+res2$P["AdapterPercentage","Aligned"]
+res2$r["AdapterPercentage","Aligned"]
 
+```
+The Aligned Metric significantly positivly impacts the Adapter sequencers percentage with a p value of 0 and a spearman Correlation coefficent of 0.81
+
+```{r}
+res2 <- rcorr(as.matrix(data.frame(interop, ASM)), type = "spearman")
+# Aligned positivly impacts the Adapter sequencers percentage
+res2$P["ChimerasPercentage","Aligned"]
+res2$r["ChimerasPercentage","Aligned"]
+
+```
+
+The Aligned Metric significantly positivly impacts the chimeras percentage with a p value of 0 and a spearman Correlation coefficent of 0.31
+
+```{r}
+res2 <- rcorr(as.matrix(data.frame(interop, ASM)), type = "spearman")
+# Aligned positivly impacts the Adapter sequencers percentage
+res2$P["ChimerasPercentage","Average_Q30"]
+res2$r["ChimerasPercentage","Average_Q30"]
+
+```
+```{r}
+res2 <- rcorr(as.matrix(data.frame(interop, ASM)), type = "spearman")
+# Aligned positivly impacts the Adapter sequencers percentage
+res2$P["StrandBalance","Aligned"]
+res2$r["StrandBalance","Aligned"]
+```
+The Aligned Metric significantly Negativly impacts the strand balance with a p value of 0 and a spearman Correlation coefficent of 0.31
+
+```{r}
+res2$P["StrandBalance","Average_Q30"]
+res2$r["StrandBalance","Average_Q30"]
+```
+
+```{r}
+res2$P["StrandBalance","Phasing"]
+res2$r["StrandBalance","Phasing"]
+```
+
+```{r}
+res2$P["StrandBalance","PrePhasing"]
+res2$r["StrandBalance","PrePhasing"]
+```
+```{r}
+res2$P["PFHQErrorRate","Intensity"]
+res2$r["PFHQErrorRate","Intensity"]
+```
+```{r}
+res2$P["PFHQErrorRate","Average_Q30"]
+res2$r["PFHQErrorRate","Average_Q30"]
+```
+```{r}
+res2$P["PFHQErrorRate","Phasing"]
+res2$r["PFHQErrorRate","Phasing"]
+```
+
+```{r}
+res2$P["PFHQErrorRate","PrePhasing"]
+res2$r["PFHQErrorRate","PrePhasing"]
+```
+```{r}
+res2$P["PFHQErrorRate","ClusterPF"]
+res2$r["PFHQErrorRate","ClusterPF"]
+```
 ## HS Metrics
 
 ```{r}
@@ -485,3 +562,513 @@ fl.cor.heatmap
 Observations:
 * Q30 & ClusterPF seem to have a large positive impact on the percentage of mapped reads, And the Singletons percentage, which are rare variants of genetic variation
 * Phasing & Prephasing seem to negativly impact the mapped percentage
+
+# 3. Modeling using Gradient Boosting
+
+```{r}
+library(tidyverse)
+library(caret)
+library(xgboost)
+# Removal of identification data and metrics with similar correlations
+model.data <- complete.data.edit %>% select(-c(SampleName, UniqueID, RunID.x, Number, Flowcell, Sequencer, Date, ID, flowcell, project, capturingKit, RunID.y, W10, W20, W30, W40, W50, W60, W70, W80, W90, W99, TargetBasesPct10X, TargetBasesPct100X, TargetBasesPct1X, TargetBasesPct2X, TargetBasesPct30X, TargetBasesPct40X, TargetBasesPct50X, PFHQErrorRate, TotalPass, SecondaryPass, DuplicatePass, MappedPass, PairedSeqPass, Read1Pass, PoperPairPass, SelfAndMatePass, SingletonsPass, MateOnDiffChromosomeLowPass, MateOnDiffChromosomeHighPass, MaxSize, MedianAbsoluteDeviation, HsPenalty100X, HsPenalty10X, HsPenalty30X, HsPenalty40X, HsPenalty50X))
+
+training.data <- model.data$Used %>% 
+  createDataPartition(p = 0.8, list = FALSE)
+set.seed(123)
+train.data  <- model.data[training.data, ]
+test.data <- model.data[-training.data, ]
+```
+
+```{r}
+# Fit the model on the training set
+set.seed(123)
+model <- train(
+  Used ~., data = train.data, method = "xgbTree",
+  trControl = trainControl("cv", number = 10)
+  )
+# Best tuning parameter
+save(model, file = "model.RData")
+model$bestTune
+```
+
+```{r}
+load("model.RData")
+predicted.classes <- model %>% predict(test.data)
+
+mean(predicted.classes == test.data$Used)
+test.data$predicted <- predicted.classes
+
+table(test.data$Used, test.data$predicted)
+```
+```{r}
+library(ROCR)
+a<- as.numeric(test.data$predicted)
+
+b<- as.numeric(test.data$Used)
+
+pred <- prediction(a, b)
+auc.tmp <- performance(pred,"auc")
+auc <- as.numeric(auc.tmp@y.values)
+auc
+```
+Even Though the area under the curve for the model, is not very accurate, We can sample a list of metrics which might affect the 
+```{r}
+varImp(model)
+```
+Because we expect that the A260_280 and The target coverage are indeed important metrics we want to look further into these other defining metrics.
+
+# 4. Testing the data differentces
+
+```{r}
+range02 <- function(x){ (x - min(x))/(max(x)-min(x)) * (1 - -1) + -1 }
+
+complete.data.edit$FractionDuplicates <- (1 - complete.data.edit$PFuniqueReads/complete.data.edit$TotalReads.x)
+metric.list <- complete.data.edit %>% select(UniqueID,A260_280, A260_230, Intensity, PrePhasing, Phasing, ClusterDensity, TargetBasesPct20X, OnBaitVSselected, PFmismatchRate, ExcMapQPct, MedianTargetCoverage, HetSNPsensitivity, StrandBalance, StandardDeviation, ChimerasPercentage, PFUQaligned, MeanSize, FractionDuplicates, Instrument)
+
+metric.list[metric.list$Instrument == "NB500917R",]$Instrument <- "NextSeq"
+
+metric.list$Instrument <- droplevels(metric.list$Instrument)
+
+metric.list.NextSeq <- metric.list[metric.list$Instrument == "NextSeq",]
+metric.list.MiSeq <- metric.list[metric.list$Instrument == "NextSeq",]
+
+metric.list.NextSeq <- metric.list.NextSeq %>% select(!Instrument)
+metric.list.MiSeq <- metric.list.MiSeq%>% select(!Instrument)
+```
+
+A260_280 threshold:
+< 1.8 = low
+1.8-2.0 = normal
+> 2.0 = high
+
+A260_230 threshold:
+< 2.0 = low
+2.0 - 2.2 = normal
+> 2.2 = high
+
+## Next seq machines
+```{r}
+metric.list.NextSeq.scaled <- as.data.frame(apply(metric.list.NextSeq, 2, range02))
+
+metric.list.NextSeq$threshold <- unlist(lapply(metric.list.NextSeq$A260_280, function(x) {
+  val <- x
+  if (val > 2.0) {
+    return("High")
+  }
+  if (val < 1.8) {
+    return("Low")
+  }
+  return("Norm")
+}))
+
+metric.list.NextSeq.scaled$threshold <- unlist(lapply(metric.list.NextSeq$A260_280, function(x) {
+  val <- x
+  if (val > 2.0) {
+    return("High")
+  }
+  if (val < 1.8) {
+    return("Low")
+  }
+  return("Norm")
+}))
+
+metric.list.NextSeq.scaled$UniqueID <- metric.list.NextSeq$UniqueID
+high.scaled <- metric.list.NextSeq.scaled[metric.list.NextSeq.scaled$threshold == "High",]
+
+
+a <- as.vector(apply(high.scaled[-c(1,20)], 2, mean))
+
+
+
+high.scaled[nrow(high.scaled) + 1,][-c(1,20)] <- a
+high.scaled[nrow(high.scaled),][,1] <- 9999
+high.scaled[nrow(high.scaled),][,20] <- "Mean"
+
+df_melted = melt(high.scaled, id.vars = c('UniqueID', 'threshold'))
+avail.high <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#f22116", "#000000")) +
+  theme(axis.text.x=element_text(angle = 90))
+
+low.scaled <- metric.list.NextSeq.scaled[metric.list.NextSeq.scaled$threshold == "Low",]
+a <- as.vector(apply(low.scaled[-c(1,20)], 2, mean))
+
+
+
+low.scaled[nrow(low.scaled) + 1,][-c(1,20)] <- a
+low.scaled[nrow(low.scaled),][,1] <- 9999
+low.scaled[nrow(low.scaled),][,20] <- "Mean"
+
+df_melted = melt(low.scaled, id.vars = c('UniqueID', 'threshold'))
+avail.low <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#16f2b7", "#000000")) + 
+  theme(axis.text.x=element_text(angle = 90))
+
+
+normal.scaled <- metric.list.NextSeq.scaled[metric.list.NextSeq.scaled$threshold == "Norm",]
+a <- as.vector(apply(normal.scaled[-c(1,20)], 2, mean))
+
+normal.scaled[nrow(normal.scaled) + 1,][-c(1,20)] <- a
+normal.scaled[nrow(normal.scaled),][,1] <- 9999
+normal.scaled[nrow(normal.scaled),][,20] <- "Mean"
+normal.scaled
+df_melted = melt(normal.scaled, id.vars = c('UniqueID', 'threshold'))
+avail.Normal <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#49f216", "#000000")) + 
+  theme(axis.text.x=element_text(angle = 90))
+
+avail.high
+avail.Normal
+avail.low
+
+high <- high.scaled[high.scaled$threshold == "Mean",]
+low <- low.scaled[low.scaled$threshold == "Mean",]
+normal <- normal.scaled[normal.scaled$threshold == "Mean",]
+high$threshold <- "High"
+high$UniqueID <- 1
+low$threshold <- "Low"
+low$UniqueID <- 2
+normal$threshold <- "Normal"
+normal$UniqueID <- 3
+
+
+df <- high
+df[2,] <- low
+df[3,] <- normal
+
+df
+df_melted = melt(df, id.vars = c('UniqueID', 'threshold'))
+mean.lines <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#f22116", "#16f2b7", "#49f216")) + 
+  theme(axis.text.x=element_text(angle = 90))
+
+mean.lines
+
+```
+* Intensity seems to differ
+* Prephasing seems to differ
+* Mismatch rate seems to differ
+* Median target coverage seems to differ
+* Mean insert Size seems to differ
+* Number of aligned reads seem to differ
+* Fraction of duplicates seem to differ
+
+
+### Tests For intensity
+```{r}
+normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
+high <- metric.list.NextSeq[metric.list.NextSeq$threshold == "High",]
+t <-t.test(normal$Intensity, high$Intensity, paired = F)
+
+t
+
+difference <- mean(normal$Intensity) - mean(high$Intensity)
+difference
+```
+Exeeding a higher threshold of 2.0 on the 260:280 ratio does not significantly change the sequencing intensity of NextSeq machines
+
+```{r}
+low <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",]
+normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
+
+t <-t.test(normal$Intensity, low$Intensity, paired = F)
+
+
+t
+
+difference <- mean(normal$Intensity) - mean(low$Intensity)
+difference
+```
+Exceeding the lower threshold of 1.8 significantly lowers the sequencing intensity in NextSeq machines, on average by 916, with a p-value of 0.029 
+
+### Tests for PrePhasing
+```{r}
+normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
+high <- metric.list.NextSeq[metric.list.NextSeq$threshold == "High",]
+t <-t.test(normal$PrePhasing, high$PrePhasing, paired = F)
+
+t
+
+difference <- mean(normal$PrePhasing) - mean(high$PrePhasing)
+difference
+```
+Exeeding a higher threshold of 2.0 on the 260:280 ratio does not significantly change the Prephasing precentage of NextSeq machines
+
+```{r}
+low <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",]
+normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
+
+t <-t.test(normal$PrePhasing, low$PrePhasing, paired = F)
+
+
+t
+
+difference <- mean(normal$PrePhasing) - mean(low$PrePhasing)
+difference
+```
+Exceeding the lower threshold of 1.8 does not alter the prephasing percentage in NextSeq machines, with a p-value of 0.054 > 0.05.
+
+### Tests for Mismatch rate
+
+```{r}
+normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
+high <- metric.list.NextSeq[metric.list.NextSeq$threshold == "High",]
+t <-t.test(normal$PFmismatchRate, high$PFmismatchRate, paired = F)
+
+t
+
+difference <- mean(normal$PFmismatchRate) - mean(high$PFmismatchRate)
+difference
+```
+Exeeding a higher threshold of 2.0 on the 260:280 ratio does not significantly change the mismatch rate in NextSeq machines with a p-value = 0.83 > 0.05
+
+```{r}
+low <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",]
+normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
+
+t <-t.test(normal$PFmismatchRate, low$PFmismatchRate, paired = F)
+
+
+t
+
+difference <- mean(normal$PFmismatchRate) - mean(low$PFmismatchRate)
+difference
+```
+Exceeding the lower threshold of 1.8 does significantly lowers the mismatch Rate slightly by 0.13 % in NextSeq machines, with a p-value of 1.79e-14 < 0.05.
+
+### Tests for Median target coverage
+```{r}
+normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
+high <- metric.list.NextSeq[metric.list.NextSeq$threshold == "High",]
+t <-t.test(normal$MedianTargetCoverage, high$MedianTargetCoverage, paired = F)
+
+t
+
+difference <- mean(normal$MedianTargetCoverage) - mean(high$MedianTargetCoverage)
+difference
+```
+Exeeding a higher threshold of 2.0 on the 260:280 ratio significantly increases the MedianTargetCoverage on average by 25 on NextSeq machines, with p-value of 0.0016 < 0.05. 
+
+```{r}
+low <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",]
+normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
+
+t <-t.test(normal$MedianTargetCoverage, low$MedianTargetCoverage, paired = F)
+
+
+t
+
+difference <- mean(normal$MedianTargetCoverage) - mean(low$MedianTargetCoverage)
+difference
+```
+Exceeding the lower threshold of 1.8 does significantly the Median Target Coverage in NextSeq machines, with a p-value of < 2.2e-16. 
+I doubt that this is correct, while yes significance exists, you would not expect the target coverage to increase with a lower quality sample. I suspect there are more factors at play for the target coverage.
+
+### Tests for Mean insert Size 
+
+```{r}
+normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
+high <- metric.list.NextSeq[metric.list.NextSeq$threshold == "High",]
+t <-t.test(normal$MeanSize, high$MeanSize, paired = F)
+
+t
+
+difference <- mean(normal$MeanSize) - mean(high$MeanSize)
+difference
+```
+Exceeding the higher threshold of 2.0 significantly impacts the mean insert size, on average by 10.5, with a p-value of 0.006 < 0.05
+
+```{r}
+low <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",]
+normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
+
+t <-t.test(normal$MeanSize, low$MeanSize, paired = F)
+
+
+t
+
+difference <- mean(normal$MeanSize) - mean(low$MeanSize)
+difference
+```
+Exceeding the lower threshold of 1.8 does  alter the mean insert size, on average by 19.8 in NextSeq machines, with a p-value of < 2.2e-16. My recommendation however is to not lower your sample purity for a higher insert size.
+
+### aligned reads Tests
+
+```{r}
+normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
+high <- metric.list.NextSeq[metric.list.NextSeq$threshold == "High",]
+t <-t.test(normal$PFUQaligned, high$PFUQaligned, paired = F)
+
+t
+
+difference <- mean(normal$PFUQaligned) - mean(high$PFUQaligned)
+difference
+```
+Exeeding a higher threshold of 2.0 on the 260:280 ratio does not significantly change the number of aligned reads in NextSeq machines
+
+```{r}
+low <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",]
+normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
+
+t <-t.test(normal$PFUQaligned, low$PFUQaligned, paired = F)
+
+
+t
+
+difference <- mean(normal$PFUQaligned) - mean(low$PFUQaligned)
+difference
+```
+Exceeding the lower threshold of 1.8 significantly lowers the number of aligned reads by 23805717 on average, with a p-value of 2.365e-15 < 0.05
+
+### Tests For Duplicates
+
+```{r}
+normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
+high <- metric.list.NextSeq[metric.list.NextSeq$threshold == "High",]
+t <-t.test(normal$PrePhasing, high$PrePhasing, paired = F)
+
+t
+
+difference <- mean(normal$FractionDuplicates) - mean(high$FractionDuplicates)
+difference
+```
+Exeeding a higher threshold of 2.0 on the 260:280 ratio does not significantly change the number of duplicates in NextSeq machines
+
+```{r}
+low <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",]
+normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
+
+t <-t.test(normal$FractionDuplicates, low$FractionDuplicates, paired = F)
+
+
+t
+
+difference <- mean(normal$FractionDuplicates) - mean(low$FractionDuplicates)
+difference
+```
+Exceeding the lower threshold of 1.8 significantly increases the number of duplicates, on average by 2.3 %, with a p-value of 0.007158 < 0.05
+
+
+```{r}
+metric.list.MiSeq.scaled <- as.data.frame(apply(metric.list.NextSeq, 2, range02))
+metric.list.MiSeq.scaled$threshold <- unlist(lapply(metric.list.NextSeq$A260_280, function(x) {
+  val <- x
+  if (val > 2.0) {
+    return("High")
+  }
+  if (val < 1.8) {
+    return("Low")
+  }
+  return("Normal")
+}))
+metric.list.MiSeq.scaled$UniqueID <- metric.list.NextSeq$UniqueID
+
+df_melted = melt(metric.list.MiSeq.scaled[metric.list.MiSeq.scaled$threshold == "High",], id.vars = c('UniqueID', 'threshold'))
+avail.high <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#f22116", "#16f2b7", "#49f216", "#165ff2")) +
+  theme(axis.text.x=element_text(angle = 90))
+
+df_melted = melt(metric.list.MiSeq.scaled[metric.list.MiSeq.scaled$threshold == "Low",], id.vars = c('UniqueID', 'threshold'))
+avail.low <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#16f2b7")) + 
+  theme(axis.text.x=element_text(angle = 90))
+
+
+
+df_melted = melt(metric.list.MiSeq.scaled[metric.list.MiSeq.scaled$threshold == "Normal",], id.vars = c('UniqueID', 'threshold'))
+avail.Normal <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#49f216")) + 
+  theme(axis.text.x=element_text(angle = 90))
+
+avail.high
+avail.Normal
+avail.low
+```
+
+## MiSeq Machines
+
+```{r}
+metric.list.MiSeq.scaled <- as.data.frame(apply(metric.list.MiSeq, 2, range02))
+
+metric.list.MiSeq$threshold <- unlist(lapply(metric.list.MiSeq$A260_280, function(x) {
+  val <- x
+  if (val > 2.0) {
+    return("High")
+  }
+  if (val < 1.8) {
+    return("Low")
+  }
+  return("Norm")
+}))
+
+metric.list.MiSeq.scaled$threshold <- unlist(lapply(metric.list.MiSeq$A260_280, function(x) {
+  val <- x
+  if (val > 2.0) {
+    return("High")
+  }
+  if (val < 1.8) {
+    return("Low")
+  }
+  return("Norm")
+}))
+
+metric.list.MiSeq.scaled$UniqueID <- metric.list.MiSeq$UniqueID
+high.scaled <- metric.list.MiSeq.scaled[metric.list.MiSeq.scaled$threshold == "High",]
+
+
+a <- as.vector(apply(high.scaled[-c(1,20)], 2, mean))
+
+
+
+high.scaled[nrow(high.scaled) + 1,][-c(1,20)] <- a
+high.scaled[nrow(high.scaled),][,1] <- 9999
+high.scaled[nrow(high.scaled),][,20] <- "Mean"
+
+df_melted = melt(high.scaled, id.vars = c('UniqueID', 'threshold'))
+avail.high <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#f22116", "#000000")) +
+  theme(axis.text.x=element_text(angle = 90))
+
+low.scaled <- metric.list.MiSeq.scaled[metric.list.MiSeq.scaled$threshold == "Low",]
+a <- as.vector(apply(low.scaled[-c(1,20)], 2, mean))
+
+
+
+low.scaled[nrow(low.scaled) + 1,][-c(1,20)] <- a
+low.scaled[nrow(low.scaled),][,1] <- 9999
+low.scaled[nrow(low.scaled),][,20] <- "Mean"
+
+df_melted = melt(low.scaled, id.vars = c('UniqueID', 'threshold'))
+avail.low <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#16f2b7", "#000000")) + 
+  theme(axis.text.x=element_text(angle = 90))
+
+
+normal.scaled <- metric.list.MiSeq.scaled[metric.list.MiSeq.scaled$threshold == "Norm",]
+a <- as.vector(apply(normal.scaled[-c(1,20)], 2, mean))
+
+normal.scaled[nrow(normal.scaled) + 1,][-c(1,20)] <- a
+normal.scaled[nrow(normal.scaled),][,1] <- 9999
+normal.scaled[nrow(normal.scaled),][,20] <- "Mean"
+normal.scaled
+df_melted = melt(normal.scaled, id.vars = c('UniqueID', 'threshold'))
+avail.Normal <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#49f216", "#000000")) + 
+  theme(axis.text.x=element_text(angle = 90))
+
+avail.high
+avail.Normal
+avail.low
+
+high <- high.scaled[high.scaled$threshold == "Mean",]
+low <- low.scaled[low.scaled$threshold == "Mean",]
+normal <- normal.scaled[normal.scaled$threshold == "Mean",]
+high$threshold <- "High"
+high$UniqueID <- 1
+low$threshold <- "Low"
+low$UniqueID <- 2
+normal$threshold <- "Normal"
+normal$UniqueID <- 3
+
+
+df <- high
+df[2,] <- low
+df[3,] <- normal
+
+df
+df_melted = melt(df, id.vars = c('UniqueID', 'threshold'))
+mean.lines <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#f22116", "#16f2b7", "#49f216")) + 
+  theme(axis.text.x=element_text(angle = 90))
+
+mean.lines
+
+```
