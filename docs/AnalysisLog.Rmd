@@ -249,11 +249,17 @@ length(complete.data.var$TotalReads.x) == sum(complete.data.var$Read1Pass == com
 ```
 Duplicated Read 1 & read 2 always have the same pass count for the flagstat metrics
 
+```{r}
+length(complete.data.var$MeanBaitCoverage) == sum(complete.data.var$MeanBaitCoverage == complete.data.var$MeanTargetCoverage)
+```
+```{r}
+length(complete.data.var$BaitTerritory) == sum(complete.data.var$BaitTerritory == complete.data.var$TargetTerritory)
+```
 
 lastly Q30 is a percentage and should not exceed 100%, we can use average Q30 per lane instead.
 
 ```{r}
-complete.data.edit <- complete.data.var %>% select(!c(ProjectedYield, Q30, Read2Pass, TotalReads.y, PFreads.x, PFreads.y, BaitSet, Category, PairOrientation)) # bait set has 1 level, as do Category and PairOrientation
+complete.data.edit <- complete.data.var %>% select(!c(ProjectedYield, Q30, Read2Pass, TotalReads.y, PFreads.x, PFreads.y, BaitSet, TargetTerritory, Category, PairOrientation)) # bait set has 1 level, as do Category and PairOrientation
 ```
 
 
@@ -263,14 +269,91 @@ str(complete.data.edit)
 
 This leaves us with a dataset of 6960 samples, with 106 variables.
 
+
 # 2. Correlation analysis
+
+```{r}
+library(Hmisc)
+
+# Size of Correlation	Interpretation
+# .90 to 1.00 (−.90 to −1.00)	Very high positive (negative) correlation
+# .70 to .90 (−.70 to −.90)	High positive (negative) correlation
+# .50 to .70 (−.50 to −.70)	Moderate positive (negative) correlation
+# .30 to .50 (−.30 to −.50)	Low positive (negative) correlation
+# .00 to .30 (.00 to −.30)	negligible correlation
+# https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3576830/
+
+get.correlation <- function(x) {
+  if (x < -0.3) {
+    if ( x < -0.5) {
+      if (x < -0.7) {
+        if (x < -0.9) {
+          return("Very high negatie correlation")
+        }
+      return("High negative correlation")
+    }
+    return("Moderate negative correlation")
+    }
+    return("Low negative correlation")
+  }
+  if (x > 0.3) {
+    if ( x > 0.5) {
+      if (x > 0.7){
+        if (x > 0.9) {
+          return("Very high positive correlation")
+        }
+        return("High positive correlation")
+      }
+      return("Moderate postive correlation")   
+    }
+    return("Low postive correlation")
+  }
+  return("negligible correlation")
+}
+
+perform_cor.tests <- function(x, y, method="spearman") {
+  metrics <- data.frame(metric.x=character(), # x metric name
+                   metric.y=character(),# y metric name
+                   Significant=logical(), # significant p-value
+                   significance.level=double(), # significance level
+                   rho=double(), # correlation coefficent
+                   verdict=character(), # correlation verdict
+                   nonneg=double(), # rho is not neglegable
+                   stringsAsFactors=FALSE)
+  
+  res2 <- rcorr(as.matrix(data.frame(y, x)), type = method)
+  
+  for (name in colnames(x)) {
+    for (y.name in colnames(y)) {
+      p <- as.numeric(res2$P[name, y.name])
+      chr.p <- as.character(p)
+      if (p < .05) {
+        chr.p <- "P<.05"
+      }
+      if (p < .01) {
+        chr.p <- "P<.01"
+      }
+      if (p < .001) {
+        chr.p <- "P<.001"
+      }
+      if (p < .0001) {
+        chr.p <- "P<.0001"
+      }
+      r <- as.numeric(res2$r[name, y.name])
+      metrics[nrow(metrics) + 1,] <- c(name, y.name, p < 0.05, chr.p , signif(r, digits = 2), get.correlation(r), (r > 0.3 | (-0.3) > r))
+    }
+  }
+  
+  return(metrics)
+}
+```
 
 ## Preparation metrics vs Sequencing Metrics
 
 ```{r}
 library(reshape2)
 library(ggplot2)
-interop <- complete.data.edit %>% select(Yield, Aligned, Intensity, ClusterDensity, Average_Q30, Phasing, PrePhasing, ClusterPF)
+interop <- complete.data.edit %>% select(Aligned, Intensity, ClusterDensity, Average_Q30, Phasing, PrePhasing, ClusterPF) # Yield excluded as it has some affect on all metrics, we look for more direct interactions
 puritys <- complete.data.edit %>% select(A260_230, A260_280)
 
 corMat <- round(cor(x=interop, y=puritys, method = "spearman", use = "complete.obs"), 2)
@@ -282,15 +365,19 @@ pur.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fi
   scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
                        midpoint = 0, limit = c(-1,1), space = "Lab", 
                        name="Spearman\nCorrelation") + 
-  theme_minimal()+ theme(legend.position = "none") + 
+  theme_minimal() + 
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
                                    size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("DNA preparation metrics") + ggtitle("Interop vs DNA purities")
 
 pur.cor.heatmap
+
+
+res <- perform_cor.tests(interop, puritys)
+res[res$Significant == T & res$nonneg == T, ]
 rm(puritys, corMat, pur.cor.heatmap)
 ```
 Observation:
-* There does not seem to be correlations with dna puritys and Sequencing metrics.
+* There does not seem to be direct correlations with dna puritys and Sequencing metrics.
 
 # Sequencing metrics(interop) correlation heatmaps to Post-bam Metrics
 
@@ -312,115 +399,83 @@ ASM.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fi
                        name="Spearman\nCorrelation") + 
   theme_minimal()+ 
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-                                   size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Alignment Summary Metrics") + ggtitle("Interop vs Alignemnt Summary Metrics")
+                                   size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Alignment Summary Metrics") + ggtitle("Sequencing vs Alignment Summary Metrics")
 
 ASM.cor.heatmap
-ggsave(
-  "Alignment_Summary_Metrics_heatmap.png",
-  plot = ASM.cor.heatmap,
-  dpi = 300,
-  limitsize = TRUE,
-)
-rm(corMat, ASM.cor.heatmap)
+
+res <- perform_cor.tests(interop, ASM)
+sig <- res[res$Significant == T & res$nonneg == T,]
+
+results <- sig[c(1,2,4,5,6)]
+
+results
+
+library(gridExtra)
+png("ASM_heatmap.png", height =205*nrow(results), width = 800*ncol(results), res = 400)
+t <- tableGrob(results, rows = NULL, cols = c("Sequencing Metric", "Post-Bam metric", "Significance Level", "Correlation Coefficent", "Relation"), theme = ttheme_minimal())
+
+grid.arrange(ASM.cor.heatmap, t, nrow=2, heights=c(1.5, 2))
+dev.off()
 ```
 Observations:
-* Yield impacts many metrics that are related to the amount of reads produced.
 * Aligned (The percentage of reads that align to the PhiX genome)
-  * positivly impacts the Adapter sequencers percentage
   * positivly impacts the chimeras percentage
-  * negativly impacts the Strand balance
-* Intensity could have an negative effect on Error Rates/mismatch rates
-* Q30
-  * could have an negative effect on Error Rates/mismatch rates
-  * could have an negative effect on Chimeras percentage and Strand balance
+  * positivly impacts the Adapter sequencers percentage
+  * negativly impacts the rate of insertions and deletions
+
+* The sequencing intensity:
+  * Negativly impacts the median number of mismathces
+  * Negativly impacts the mismatch rate
+  * Negativly impacts the error rate
+  * When your sequencing intensity is higher, it suggests that there will be less mismatches/errors, which is also expected, if the intensity is more clear, there is a higher chance of a correct base call 
+
+* Q30:
+  * Negativly impacts the median number of mismathces
+  * Negativly impacts the mismatch rate
+  * Negativly impacts the error rate
+  * These 3 are expected results as when you have a phred score of 10, there is a 90% probability that a base was called incorrectly. Meanwhile if there are more bases with a 99.99% probability(Q30) you expect less mismatches in alignment. 
+  * Negativly impacts the strandbalance, when the base calls are more accurate, there are less reads that align to the positve strand of the genome versus the genome.
+  * Negativly impacts the chimeras percentage, when base calls are more accurate, there are less reads that could be contaminated by reads originating from another source. 
+
 * Phasing
-  * Positive impact on Error rate/mismatch rate
+  * Positvly impacts the mismatch and error rate, when there is more phasing while sequencing it could be that there are more mismatches/errors in the bases.
+
 * PrePhasing
-  * Positive impact on error RAte/mismatch rate
-* ClusterPf (Clusters passing filter)
-  * Negative impact on Error Rate/Mismatch rate
+  * Positivly impacts the mismatch and error rate, when there is more prephasing while sequencing it could be that there are more mismatches/errors in the bases that were called. 
+  * Positivly impacts the strandbalance, when there is more prephasing, it suggests that more reads will allign to the positive strand of the genome versus the genome. 
+
+* Clusters passing filters
+  * Negativly impacts mismatch/error rate & median mismatches, when more clusters pass the filters there will be less errors/mismatches in the sequenced reads.
+
+Metrics that could have interactions: interop
+  Aligned
+  Intensity
+  Q30
+  Phasing
+  PrePhasing
+  ClustersPF
   
-Interesting metrics:
-  * Chimeras Percentage: might suggest sample contamination
-  * Mismatch/Error rate: changes might suggest lower quality & has many ivluencing metrics
+Metrics that could have interactions:Post-bam:
+  Chimeras
+  Adapter sequences
+  indels
+  mismatch rate
+  error rate
+  median mismatch rate
   
-```{r}
-res2 <- rcorr(as.matrix(data.frame(interop, ASM)), type = "spearman")
-# Aligned positivly impacts the Adapter sequencers percentage
-res2$P["AdapterPercentage","Aligned"]
-res2$r["AdapterPercentage","Aligned"]
 
-```
-The Aligned Metric significantly positivly impacts the Adapter sequencers percentage with a p value of 0 and a spearman Correlation coefficent of 0.81
-
-```{r}
-res2 <- rcorr(as.matrix(data.frame(interop, ASM)), type = "spearman")
-# Aligned positivly impacts the Adapter sequencers percentage
-res2$P["ChimerasPercentage","Aligned"]
-res2$r["ChimerasPercentage","Aligned"]
-
-```
-
-The Aligned Metric significantly positivly impacts the chimeras percentage with a p value of 0 and a spearman Correlation coefficent of 0.31
-
-```{r}
-res2 <- rcorr(as.matrix(data.frame(interop, ASM)), type = "spearman")
-# Aligned positivly impacts the Adapter sequencers percentage
-res2$P["ChimerasPercentage","Average_Q30"]
-res2$r["ChimerasPercentage","Average_Q30"]
-
-```
-```{r}
-res2 <- rcorr(as.matrix(data.frame(interop, ASM)), type = "spearman")
-# Aligned positivly impacts the Adapter sequencers percentage
-res2$P["StrandBalance","Aligned"]
-res2$r["StrandBalance","Aligned"]
-```
-The Aligned Metric significantly Negativly impacts the strand balance with a p value of 0 and a spearman Correlation coefficent of 0.31
-
-```{r}
-res2$P["StrandBalance","Average_Q30"]
-res2$r["StrandBalance","Average_Q30"]
-```
-
-```{r}
-res2$P["StrandBalance","Phasing"]
-res2$r["StrandBalance","Phasing"]
-```
-
-```{r}
-res2$P["StrandBalance","PrePhasing"]
-res2$r["StrandBalance","PrePhasing"]
-```
-```{r}
-res2$P["PFHQErrorRate","Intensity"]
-res2$r["PFHQErrorRate","Intensity"]
-```
-```{r}
-res2$P["PFHQErrorRate","Average_Q30"]
-res2$r["PFHQErrorRate","Average_Q30"]
-```
-```{r}
-res2$P["PFHQErrorRate","Phasing"]
-res2$r["PFHQErrorRate","Phasing"]
-```
-
-```{r}
-res2$P["PFHQErrorRate","PrePhasing"]
-res2$r["PFHQErrorRate","PrePhasing"]
-```
-```{r}
-res2$P["PFHQErrorRate","ClusterPF"]
-res2$r["PFHQErrorRate","ClusterPF"]
-```
 ## HS Metrics
 
 ```{r}
+library(DBI)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
 connection = dbConnect(RSQLite::SQLite(), "data/SQLITE/databaseFull.db")
 hsm <- dbListFields(connection, "hsMetrics")
 hsm <- hsm[hsm %in% names(complete.data.edit)]
 HS <- complete.data.edit %>% select(hsm)
-HS
+
 HS1 <- HS[1:10]
 corMat <- round(cor(x=HS1, y=interop, method = "spearman", use = "complete.obs"), 2)
 
@@ -433,17 +488,56 @@ hs.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fil
                        name="Spearman\nCorrelation") + 
   theme_minimal()+ 
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-                                   size = 12, hjust = 1)) + xlab("Hs Metrics") + ylab("Interop") + ggtitle("Interop vs hs metrics 1")
+                                   size = 12, hjust = 1)) + xlab("Hs Metrics") + ylab("Interop") + ggtitle("Sequencing vs HS-metrics 1")
 
 hs.cor.heatmap
+
+
+library(Hmisc)
+
+
+res <- perform_cor.tests(interop, HS1)
+sig <- res[res$Significant == T & res$nonneg == T,]
+
+results <- sig[c(1,2,4,5,6)]
+
+results
+
+library(gridExtra)
+png("HS1t_heatmap.png", height =410*nrow(results), width = 800*ncol(results), res = 400)
+t <- tableGrob(results, rows = NULL, cols = c("Sequencing Metric", "Post-Bam metric", "Significance Level", "Correlation Coefficent", "Relation"), theme = ttheme_minimal())
+
+grid.arrange(hs.cor.heatmap, t, nrow=2)
+dev.off()
 ```
 Observations:
-* ClusterDensity 
-  *Negitavly affects the size of the terretories, which is expected
-  *Positivly Affects the MeanBaitCoverage, MeanTargetCoverage, and MedianTargetCoverage
-* ClusterPF
-  * Negativly affects MeanBaitCoverage and MeanTargetCoverage
+* Aligned
+  Positivly impacts the fraction of bases on or near baits that are covered by baits. The more of the sample that alignes to the PhiX genome the more  bases will be near baits.
+
+* Cluster Density
+  * Negativly impacts the bait terretory, more dense clusters equals less bases per bait
+  * Negativly impactes the mean Bait coverage, mean target coverage, and median target coverage, more dense clusters could mean that the target/bait regions are smaller
+
+* Q30
+  * Negativly impacts the meanBait/target coverage, higher probabilitys of base calls results in less coverage for baits and target regions.
   
+* Clusters passing filters
+  * Negativly impacts the meanBait/target coverage, more clusters that pass the quality filter equals less Bait/target coverage
+  
+Metrics that could have interactions: Interop
+  Aligned
+  ClusterDensity
+  Average_Q30
+  ClusterPF
+  
+Metrics that could have interactions Post-bam:
+  OnBaitVSselected
+  BaitTerritory
+  MeanBaitCoverage
+  MedianTargetCoverage
+  MeanTargetCoverage
+  
+
 
 ```{r}
 HS2 <- HS[11:20]
@@ -458,17 +552,60 @@ hs.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fil
                        name="Spearman\nCorrelation") + 
   theme_minimal()+ 
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-                                   size = 12, hjust = 1)) + xlab("Hs Metrics") + ylab("Interop") + ggtitle("Interop vs hs metrics 2")
+                                   size = 12, hjust = 1)) + xlab("Hs Metrics") + ylab("Interop") + ggtitle("Sequencing vs HS-metrics 2")
 
 hs.cor.heatmap
+ggsave(
+  "Hs2_heatmap.png",
+  plot = hs.cor.heatmap,
+  dpi = 300,
+  limitsize = TRUE,
+)
+library(Hmisc)
+
+
+res <- perform_cor.tests(interop, HS2)
+sig <- res[res$Significant == T & res$nonneg == T,]
+
+results <- sig[c(1,2,4,5,6)]
+
+results
+
+library(gridExtra)
+png("HS2t_heatmap.png", height =410*nrow(results), width = 800*ncol(results), res = 400)
+t <- tableGrob(results, rows = NULL, cols = c("Sequencing Metric", "Post-Bam metric", "Significance Level", "Correlation Coefficent", "Relation"), theme = ttheme_minimal())
+
+grid.arrange(hs.cor.heatmap, t, nrow=2)
+dev.off()
 ```
+
 Observations:
-* ClusterDensity
-  * Negitivly affects the ExcBaseQPct(fraction of aligned bases that were filtered out becouse of low quality)
-  * positivly affects the TargetBases with 1X & 2X or greater coverage
 * Aligned
-  * Negativly affects the ExcDupePCT, or the fraction of aligned bases taht were filtered out because they were in reads marked as duplicate
   * Positivly affects the ExcMapQPct, or the fraction of aligned bases that were filtered out because they were in reads with low mapping quality
+  * Positivly affects the Fold 80 base penalty, or the fold of additional sequencing required to ensure that 80% of the target bases achieve the mean coverage. 
+  
+* Cluster Density
+  * Positivly impacts the fold by which the baited region has been amplified above genomic background.
+  * Negativly impacts the zeroCVGtargetsPercentage or the fraction of targets that did not reach coverage=1 over any base
+  * Negativly impacts the EXCBaseQPct or the fraction of aligned bases that were filtered out becouse of low quality
+  * Positivly impacts the fraciton of target bases that acieve some kind of coverage. 
+  
+* Q30
+  * Negativly impacts the fold80 base penalty.
+  
+Clusters Passing Filters:
+  * Negativly impacts the fold80 base penalty.
+  
+  
+Metrics that could have interactions:
+  ExtMapQPct
+  Fold80 base penalty
+  FoldEnrichment
+  ZeroCVGtargetsPercentage
+  TargetBasesPctXXX
+
+
+  
 ```{r}
 HS3 <- HS[21:30]
 corMat <- round(cor(x=HS3, y=interop, method = "spearman", use = "complete.obs"), 2)
@@ -482,14 +619,38 @@ hs.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fil
                        name="Spearman\nCorrelation") + 
   theme_minimal()+ 
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-                                   size = 12, hjust = 1)) + xlab("Hs Metrics") + ylab("Interop") + ggtitle("Interop vs hs metrics 3")
+                                   size = 12, hjust = 1)) + xlab("Hs Metrics") + ylab("Interop") + ggtitle("Sequencing vs HS-metrics 3")
 
 hs.cor.heatmap
+
+
+res <- perform_cor.tests(interop, HS3)
+sig <- res[res$Significant == T & res$nonneg == T,]
+
+results <- sig[c(1,2,4,5,6)]
+
+results
+
+library(gridExtra)
+png("HS3t_heatmap.png", height =410*nrow(results), width = 800*ncol(results), res = 400)
+t <- tableGrob(results, rows = NULL, cols = c("Sequencing Metric", "Post-Bam metric", "Significance Level", "Correlation Coefficent", "Relation"), theme = ttheme_minimal())
+
+grid.arrange(hs.cor.heatmap, t, nrow=2)
+dev.off()
 ```
 Observations:
-The target coverage metrics seem to vary in the same way, as do the hsPenalty metrics (hybrid selection penalty)
+The cluster density impacts the amount of target bases achieving the desired coverage
+
+the q30 & Clusters passing filters negativly impacts the penalty given to the target design to achieve a certain coverage for that target.
+
+Metrics that could have interactions:
+  HsPenalty
+  
+
+
+
 ```{r}
-HS4 <- HS[31:35]
+HS4 <- HS[31:34]
 corMat <- round(cor(x=HS4, y=interop, method = "spearman", use = "complete.obs"), 2)
 
 
@@ -501,13 +662,35 @@ hs.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fil
                        name="Spearman\nCorrelation") + 
   theme_minimal()+ 
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-                                   size = 12, hjust = 1)) + xlab("Hs Metrics") + ylab("Interop") + ggtitle("Interop vs hs metrics 4")
+                                   size = 12, hjust = 1)) + xlab("Hs Metrics") + ylab("Interop") + ggtitle("Sequencing vs HS-metrics 4")
 
 hs.cor.heatmap
+
+res <- perform_cor.tests(interop, HS4)
+sig <- res[res$Significant == T & res$nonneg == T,]
+
+results <- sig[c(1,2,4,5,6)]
+
+results
+
+library(gridExtra)
+png("HS4t_heatmap.png", height =410*nrow(results), width = 800*ncol(results), res = 400)
+t <- tableGrob(results, rows = NULL, cols = c("Sequencing Metric", "Post-Bam metric", "Significance Level", "Correlation Coefficent", "Relation"), theme = ttheme_minimal())
+
+grid.arrange(hs.cor.heatmap, t, nrow=2)
+dev.off()
 ```
 
 Observations:
 The ClusterDensity seems to affect the sesnitifty to detect Hetrozygous SNPs and the Hetrozygous SNP sensitifity scaled to th e Qscore in a positive way.
+
+as said earlier, the Q30 and Clusters passing filter affect the hybrid selection penalty given to targets.
+
+Metrics that could have interactions:
+  HetSNPsensitivity
+  HetSNPQ
+  
+
 
 ## Insert Size metrics
 
@@ -530,11 +713,32 @@ IS.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fil
                                    size = 12, hjust = 1)) + xlab("Interop Metrics") + ylab("Insert Size Metrics") + theme(legend.position = "none") + ggtitle("Interop vs InsertSize metrics")
 
 IS.cor.heatmap
+
+
+res <- perform_cor.tests(interop, IS)
+sig <- res[res$Significant == T & res$nonneg == T,]
+
+results <- sig[c(1,2,4,5,6)]
+
+results
+
+library(gridExtra)
+png("ISt_heatmap.png", height =410*nrow(results) *2, width = 800*ncol(results), res = 400)
+t <- tableGrob(results, rows = NULL, cols = c("Sequencing Metric", "Post-Bam metric", "Significance Level", "Correlation Coefficent", "Relation"), theme = ttheme_minimal())
+
+grid.arrange(IS.cor.heatmap, t, nrow=2, heights=c(2, 1))
+dev.off()
 ```
 Observations:
-* MedianSize which is the representative Insert size metric for a sample:
-  * might be negativly affected by the aligned metric
-  No big influencers it seems.
+* reads aligned to the PhiX genome:
+  * negativly affects the median and mean insert size
+
+* Q30
+  Positivly affects the the width of bins that encompaass all read pairs.
+  
+Metrics that could have interactions:
+  Mean Size
+  Median Size
   
 ## FLagstat Metrics
 
@@ -558,10 +762,86 @@ fl.cor.heatmap <- ggplot(data = melt(corMat, na.rm = T), aes(x=Var1, y=Var2, fil
                                    size = 12, hjust = 1)) + xlab("FlagStat metrics") + ylab("Interop") + ggtitle("Correlations between Interop vs hs metrics")
 
 fl.cor.heatmap
+ggsave(
+  "Flagstat_heatmap.png",
+  plot = fl.cor.heatmap,
+  dpi = 300,
+  limitsize = TRUE,
+)
+
+res <- perform_cor.tests(interop, FL)
+sig <- res[res$Significant == T & res$nonneg == T,]
+
+results <- sig[c(1,2,4,5,6)]
+
+results
+
+library(gridExtra)
+png("FLt_heatmap.png", height =310*nrow(results), width = 810*ncol(results), res = 400)
+t <- tableGrob(results, rows = NULL, cols = c("Sequencing Metric", "Post-Bam metric", "Significance Level", "Correlation Coefficent", "Relation"), theme = ttheme_minimal())
+
+grid.arrange(fl.cor.heatmap, t, nrow=2)
+dev.off()
 ```
 Observations:
-* Q30 & ClusterPF seem to have a large positive impact on the percentage of mapped reads, And the Singletons percentage, which are rare variants of genetic variation
+* Q30 & ClusterPF seem to have a large positive impact on the percentage of mapped reads, And the Singletons percentage, which are reads which are unmapped but their mate is not.
+§
 * Phasing & Prephasing seem to negativly impact the mapped percentage
+
+Metrics that could have interactions:
+  MappedPercentage
+  ProperPairPCT
+  SingleTonsPass
+  SingletonsPCT
+  MateOnDiffChromosomeLowPass
+  MateOnDiffChromosomeLowPass
+  
+
+
+## 2.2 List
+
+Starting Metrics: 
+  A260_230
+  A260_280
+
+Metrics that could have interactions: Interop
+  Aligned
+  Intensity
+  Q30
+  Phasing
+  PrePhasing
+  ClustersPF
+  ClusterDensity
+  
+Metrics that could have interactions Post-bam:
+  Chimeras
+  Adapter sequences
+  indels
+  mismatch rate/ error rate (are almost equal, we use mismatch rate for now)
+  median mismatch rate
+  OnBaitVSselected
+  BaitTerritory
+  MeanBaitCoverage
+  MedianTargetCoverage
+  MeanTargetCoverage
+  ExtMapQPct
+  Fold80 base penalty
+  FoldEnrichment
+  ZeroCVGtargetsPercentage
+  TargetBasesPct20X
+  HsPenalty20X
+  HetSNPsensitivity
+  HetSNPQ
+  MeanSize
+  MedianSize
+  MappedPercentage
+  ProperPairPCT
+  SingleTonsPass
+  SingletonsPCT
+  MateOnDiffChromosomeLowPass
+  MateOnDiffChromosomeLowPass
+  FractionDuplicates
+  
 
 # 3. Modeling using Gradient Boosting
 
@@ -570,38 +850,68 @@ library(tidyverse)
 library(caret)
 library(xgboost)
 # Removal of identification data and metrics with similar correlations
-model.data <- complete.data.edit %>% select(-c(SampleName, UniqueID, RunID.x, Number, Flowcell, Sequencer, Date, ID, flowcell, project, capturingKit, RunID.y, W10, W20, W30, W40, W50, W60, W70, W80, W90, W99, TargetBasesPct10X, TargetBasesPct100X, TargetBasesPct1X, TargetBasesPct2X, TargetBasesPct30X, TargetBasesPct40X, TargetBasesPct50X, PFHQErrorRate, TotalPass, SecondaryPass, DuplicatePass, MappedPass, PairedSeqPass, Read1Pass, PoperPairPass, SelfAndMatePass, SingletonsPass, MateOnDiffChromosomeLowPass, MateOnDiffChromosomeHighPass, MaxSize, MedianAbsoluteDeviation, HsPenalty100X, HsPenalty10X, HsPenalty30X, HsPenalty40X, HsPenalty50X))
+# model.data <- complete.data.edit %>% select(-c(SampleName, UniqueID, RunID.x, Number, Flowcell, Sequencer, Date, ID, flowcell, project, capturingKit, RunID.y, W10, W20, W30, W40, W50, W60, W70, W80, W90, W99, TargetBasesPct10X, TargetBasesPct100X, TargetBasesPct1X, TargetBasesPct2X, TargetBasesPct30X, TargetBasesPct40X, TargetBasesPct50X, PFHQErrorRate, TotalPass, SecondaryPass, DuplicatePass, MappedPass, PairedSeqPass, Read1Pass, PoperPairPass, SelfAndMatePass, SingletonsPass, MateOnDiffChromosomeLowPass, MateOnDiffChromosomeHighPass, MaxSize, MedianAbsoluteDeviation, HsPenalty100X, HsPenalty10X, HsPenalty30X, HsPenalty40X, HsPenalty50X))
 
-training.data <- model.data$Used %>% 
+model.data.all2 <- complete.data.edit %>% select(A260_230, A260_280, Aligned, Intensity, Average_Q30, Phasing, PrePhasing, ClusterPF, ClusterDensity, ChimerasPercentage, AdapterPercentage, PFindelRate, PFmismatchRate, PFHQmedianMismatches, OnBaitVSselected, MeanBaitCoverage, MedianTargetCoverage, MeanTargetCoverage, ExcMapQPct, Fold80BasePenalty, FoldEnrichment, ZeroCVGtargetsPercentage, TargetBasesPct20X, HsPenalty20X, HetSNPsensitivity, StrandBalance, MeanSize, MedianSize, MappedPercentage, ProperPairPCT, SingletonsPercentage, Used)
+
+model.data2 <- model.data.all2 %>% select(-c(A260_230, A260_280, Aligned, Intensity, Average_Q30, Phasing, PrePhasing, ClusterPF, ClusterDensity))
+model.data2$FractionDuplicates <- complete.data.edit$PFuniqueReads / complete.data.edit$TotalReads.x # Additional metric of interest: Fraciton of duplicates
+
+set.seed(163) ## for reproducability
+training.data <- model.data2$Used %>% 
   createDataPartition(p = 0.8, list = FALSE)
-set.seed(123)
-train.data  <- model.data[training.data, ]
-test.data <- model.data[-training.data, ]
+
+train.data  <- model.data2[training.data, ]
+test.data <- model.data2[-training.data, ]
+
 ```
 
 ```{r}
-# Fit the model on the training set
-set.seed(123)
-model <- train(
-  Used ~., data = train.data, method = "xgbTree",
-  trControl = trainControl("cv", number = 10)
-  )
-# Best tuning parameter
-save(model, file = "model.RData")
-model$bestTune
+set.seed(163)
+tune_grid2 <- expand.grid(
+  nrounds = seq(from = 50, to = 1000, by = 50),
+  eta = 0.3,
+  max_depth = c(2,3,4),
+  gamma = 0,
+  colsample_bytree = 1,
+  min_child_weight = c(1,2,3),
+  subsample = 1
+)
+
+#Fit the model on the training set
+set.seed(163)
+model3 <- caret::train(
+   Used ~., data = train.data, method = "xgbTree",
+   trControl = trainControl("cv", number = 10),
+   tune_grid = tune_grid2
+   )
+ # Best tuning parameter
+model3$bestTune
 ```
 
 ```{r}
-load("model.RData")
-predicted.classes <- model %>% predict(test.data)
+model2pred <- predict (model3,test.data)
+confusionMatrix (model2pred,  test.data$Used)
+imp <- varImp(model3)$importance
 
-mean(predicted.classes == test.data$Used)
-test.data$predicted <- predicted.classes
+imp$metric <- rownames(imp)
+imp$metric <- factor(imp$metric, levels = imp$metric[order(imp$Overall)])
 
-table(test.data$Used, test.data$predicted)
-```
-```{r}
+imp <- varImp(model2)$importance
+
+imp$metric <- rownames(imp)
+imp$metric <- factor(imp$metric, levels = imp$metric[order(imp$Overall)])
+imp$Invluence_level <- ifelse(imp$Overall > 10, "10% or more", "Less than 10%")
+
 library(ROCR)
+predicted.classes <- model3 %>% predict(test.data)
+
+accuracy <- (sum(predicted.classes == test.data$Used)/nrow(test.data)) * 100
+
+test.data$predicted <- predicted.classes
+ 
+d <- table(test.data$Used, test.data$predicted)
+
 a<- as.numeric(test.data$predicted)
 
 b<- as.numeric(test.data$Used)
@@ -609,46 +919,159 @@ b<- as.numeric(test.data$Used)
 pred <- prediction(a, b)
 auc.tmp <- performance(pred,"auc")
 auc <- as.numeric(auc.tmp@y.values)
-auc
+FPR <- signif(d[1,2]/sum(d[,1]), digits = 2)
+FPR
+FNR <- signif(d[2,1]/sum(d[2,]), digits = 2)
+FNR
+subt <- paste0("Accuracy: ", signif(accuracy, digits = 3), "%", " FPR: ", FPR, " FNR: ", FNR)
+
+p <- ggplot(imp, aes(x=metric, y=Overall, fill=Invluence_level)) + geom_bar(stat = "identity")  + coord_flip() + ylab("Level of importance (%)") + xlab("Metric in model") + ggtitle("Metric importance acording to the xdgboost model", subtitle = subt) + scale_fill_manual(values=c("green", "red"))
+
+ggsave("Model_performance1.png", 
+       plot = p, 
+       dpi = 300)
+
+p
 ```
-Even Though the area under the curve for the model, is not very accurate, We can sample a list of metrics which might affect the 
+
+
 ```{r}
-varImp(model)
+# reduce skewedness
+model.data2.not.reinserted <- model.data2[model.data2$Used == "Not Reinserted",]
+model.data2.reinserted <- model.data2[model.data2$Used == "Reinserted",]
+
+nrow(model.data2.reinserted)
+nrow(model.data2.not.reinserted)
+set.seed(163)
+model.data2.not.reinserted.sample <- model.data2.not.reinserted[sample(nrow(model.data2.not.reinserted), size = nrow(model.data2.reinserted)),]
+
+model.data.equal <- rbind(model.data2.reinserted, model.data2.not.reinserted.sample)
+set.seed(163) ## for reproducability
+training.data2 <- model.data.equal$Used %>% 
+  createDataPartition(p = 0.8, list = FALSE)
+
+train.data2  <- model.data.equal[training.data2, ]
+test.data2 <- model.data.equal[-training.data2, ]
+
 ```
-Because we expect that the A260_280 and The target coverage are indeed important metrics we want to look further into these other defining metrics.
+
+```{r}
+# Fit the model on the training set
+set.seed(163)
+trCtr <- trainControl("cv", number = 10)
+
+set.seed(163)
+model4 <- train(
+  Used ~., data = train.data2, method = "xgbTree",
+  trControl = trCtr,
+  )
+# Best tuning parameter
+save(model4, file = "model4.RData")
+model4$bestTune
+```
+
+```{r}
+model4pred <- predict (model4,test.data2)
+confusionMatrix (model4pred,  test.data2$Used)
+imp2 <- varImp(model4)$importance
+
+imp2$metric <- rownames(imp2)
+imp2$metric <- factor(imp2$metric, levels = imp2$metric[order(imp2$Overall)])
+imp2$Invluence_level <- ifelse(imp2$Overall > 10, "10% or more", "less than 10%")
+
+library(ROCR)
+ predicted.classes <- model4 %>% predict(test.data2)
+ 
+accuracy <- (sum(predicted.classes == test.data2$Used)/nrow(test.data2)) * 100
+
+test.data2$predicted <- predicted.classes
+ 
+d <- table(test.data2$Used, test.data2$predicted)
+d
+a<- as.numeric(test.data2$predicted)
+
+b<- as.numeric(test.data2$Used)
+
+pred <- prediction(a, b)
+auc.tmp <- performance(pred,"auc")
+auc <- as.numeric(auc.tmp@y.values)
+FPR <- signif(d[1,2]/sum(d[,1]), digits = 2)
+FPR
+FNR <- signif(d[2,1]/sum(d[2,]), digits = 2)
+FNR
+subt <- paste0("Accuracy: ", signif(accuracy, digits = 3), "%", " FPR: ", FPR, " FNR: ", FNR)
+
+p <- ggplot(imp2, aes(x=metric, y=Overall, fill=Invluence_level)) + geom_bar(stat = "identity") + theme(legend.position = "none") + coord_flip() + ylab("Level of importance (%)") + xlab("Metric in model") + ggtitle("Metric importance acording to the xdgboost model", subtitle = subt) + scale_fill_manual(values=c("green", "red"))
+
+
+ggsave("Model_performance2.png", 
+       plot = p, 
+       dpi = 300)
+
+p
+
+```
+
+In combination with these results and judgment of interesting metrics the following list of 14 metrics was created: 
+
+* OnBaitVsSelected - larges invluencer, might indicate lesser bait performance.
+* MeanTargetCoverage - high invluencer, and if we want target coverage to remain high, interesting to look at
+* Fold80BasePenalty - high invluencer, describes the penalty required to achieve a certain coverage for targets with a coverage of 1
+* HetSNPsensitivity - high invluencer and interesting as the it mught be usefull to know that the sensitivity/likelyhood of detecting SNP's in heterozyous pairs gous down.
+
+* ChimerasPercentage - high invluencer, and interesting as it could indicate contamination in a sample
+
+* ExcMapQpct - high invluencer, could be interesting to know if the fraction of bases that were filtered out becouse of lower quality
+* PFmismatchRate - moderate invluencer, and we want this to remain lower.
+* FractionDuplicates - moderate invluencer, Fraction of duplicates we want this to decrease, usefull to assess
+* MeanSize - moderate invluencer, ultimatly we want the insert size to increase
+
+* PF indel Rate, moderate invluencer, could be usefull to know if there is any effect on the amount of insertions/deletions in a read.
+
+* HSpenalty20X
+* MeanBaitCoverage
+* SingletonsPErcentage
+* MedianSize
+* TargetBasesPct20X, less invluential, but is the coverage used for quality assesment in the current proccess, this has to remain high
+
+
+Metrics excluded:
+* Mapped Percentage
+* Median target coverage
+* PFHQmedianMismatches
+* Adapter PErcentage
+* StrandBalance, altough a high invluencer, no real interest in quality metrics
+* ProperPairPCT, ultimatly, it is not clear what this metric represents, so its not usefull in later analysis
 
 # 4. Testing the data differentces
 
 ```{r}
-range02 <- function(x){ (x - min(x))/(max(x)-min(x)) * (1 - -1) + -1 }
-
+library(dplyr)
 complete.data.edit$FractionDuplicates <- (1 - complete.data.edit$PFuniqueReads/complete.data.edit$TotalReads.x)
-metric.list <- complete.data.edit %>% select(UniqueID,A260_280, A260_230, Intensity, PrePhasing, Phasing, ClusterDensity, TargetBasesPct20X, OnBaitVSselected, PFmismatchRate, ExcMapQPct, MedianTargetCoverage, HetSNPsensitivity, StrandBalance, StandardDeviation, ChimerasPercentage, PFUQaligned, MeanSize, FractionDuplicates, Instrument)
+
+metric.list <- complete.data.edit %>% select(UniqueID,A260_280, A260_230, Intensity, PrePhasing, Phasing, ClusterDensity, Average_Q30, ClusterPF, OnBaitVSselected, MeanTargetCoverage, Fold80BasePenalty, HetSNPsensitivity, ChimerasPercentage, ExcMapQPct, PFmismatchRate, FractionDuplicates, MeanSize, PFindelRate, HsPenalty20X, MeanBaitCoverage, SingletonsPercentage, MedianSize, TargetBasesPct20X, Instrument)
+
+
 
 metric.list[metric.list$Instrument == "NB500917R",]$Instrument <- "NextSeq"
 
 metric.list$Instrument <- droplevels(metric.list$Instrument)
 
 metric.list.NextSeq <- metric.list[metric.list$Instrument == "NextSeq",]
-metric.list.MiSeq <- metric.list[metric.list$Instrument == "NextSeq",]
+metric.list.MiSeq <- metric.list[metric.list$Instrument == "MiSeq",]
 
-metric.list.NextSeq <- metric.list.NextSeq %>% select(!Instrument)
+metric.list.MiSeq <- metric.list.MiSeq[metric.list.MiSeq$Intensity < 5000, ] # filter incorrectly labled miseq machines
+metric.list.NextSeq <- metric.list.NextSeq[metric.list.NextSeq$Intensity > 5000, ] # filter incorrectly labled Next seq machines
+metric.list.NextSeq <- metric.list.NextSeq %>% select(!Instrument) 
 metric.list.MiSeq <- metric.list.MiSeq%>% select(!Instrument)
 ```
 
-A260_280 threshold:
-< 1.8 = low
-1.8-2.0 = normal
-> 2.0 = high
-
-A260_230 threshold:
-< 2.0 = low
-2.0 - 2.2 = normal
-> 2.2 = high
-
 ## Next seq machines
 ```{r}
-metric.list.NextSeq.scaled <- as.data.frame(apply(metric.list.NextSeq, 2, range02))
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+library(scales)
 
 metric.list.NextSeq$threshold <- unlist(lapply(metric.list.NextSeq$A260_280, function(x) {
   val <- x
@@ -661,12 +1084,670 @@ metric.list.NextSeq$threshold <- unlist(lapply(metric.list.NextSeq$A260_280, fun
   return("Norm")
 }))
 
-metric.list.NextSeq.scaled$threshold <- unlist(lapply(metric.list.NextSeq$A260_280, function(x) {
+remove_outliers_high <- function(x, na.rm = TRUE, ...) {
+  qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
+  H <- 1.5 * IQR(x, na.rm = na.rm)
+  y <- x
+  y[x > (qnt[2] + H)] <- NA
+  y
+}
+remove_outliers_low <- function(x, na.rm = TRUE, ...) {
+  qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
+  H <- 1.5 * IQR(x, na.rm = na.rm)
+  y <- x
+  y[x < (qnt[1] - H)] <- NA
+  y
+}
+
+remove_outliers_norm <- function(x, na.rm = TRUE, ...) {
+  qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
+  H <- 1.5 * IQR(x, na.rm = na.rm)
+  y <- x
+  y[x < (qnt[1] - H)] <- NA
+  y[x > (qnt[2] + H)] <- NA
+  y
+}
+
+head(metric.list.NextSeq)
+
+prebam <- c(4:9)
+postbam <- c(10:24)
+
+metric.list.NextSeq.outlier <- metric.list.NextSeq
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "High",][c(2,prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "High",][c(2,prebam,postbam)], 2, remove_outliers_norm))
+
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "Norm",][c(2,prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",][c(2,prebam, postbam)], 2, remove_outliers_norm))
+
+
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "Low",][c(2,prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",][c(2,prebam,postbam)], 2, remove_outliers_norm))
+
+metric.list.NextSeq.scaled <- na.omit(metric.list.NextSeq.outlier)
+metric.list.NextSeq.scaled
+metric.list.NextSeq.scaled[c(2:(ncol(metric.list.NextSeq.scaled) -1))] <- as.data.frame(apply(metric.list.NextSeq.scaled[c(2,prebam,postbam)], 2, function(x) {
+  rescale(x, to=c(-1,1))
+}))
+
+metric.list.NextSeq.scaled$threshold <- factor(metric.list.NextSeq.scaled$threshold, levels = c("High", "Norm", "Low"))
+df_melted = melt(metric.list.NextSeq.scaled[c(1,2,prebam,postbam, ncol(metric.list.NextSeq.scaled))], id.vars = c('UniqueID', 'threshold'), na.rm = TRUE)
+df_melted
+mean.lines <- ggplot(df_melted, aes(x = variable, y = value, fill = threshold)) +
+  geom_boxplot(alpha = 0.5) +
+  scale_fill_manual(values=c("red", "green", "blue"), name = "Threshold", labels = c("Above", "Between", "Below")) +
+  ggtitle("Mean scaled metric change", subtitle = "compared to the 260:280 threshold limits (NextSeq)") + 
+  ylab("Change from center") + 
+  theme(axis.text.x=element_text(angle = 90, size = 15),
+        plot.title = element_text(size = 20),
+        plot.subtitle = element_text(size = 15),
+        legend.text = element_text(size = 10),
+        axis.text.y = element_text(size = 12),
+        axis.title.y = element_text(size = 15 )) 
+
+mean.lines
+
+ggsave(
+  "NextSeq_threshold_change.png",
+  plot = mean.lines,
+  limitsize = TRUE,
+  scale = 1,
+  width = 14,
+  height = 7
+)
+
+
+```
+* Intensity seems to differ
+* Prephasing seems to differ
+* Mismatch rate seems to differ
+* Median target coverage seems to differ
+* Mean insert Size seems to differ
+* Number of aligned reads seem to differ
+* Fraction of duplicates seem to differ
+
+```{r}
+summary(metric.list.NextSeq$A260_280)
+summary(metric.list.NextSeq$MeanBaitCoverage)
+```
+
+```{r}
+library(dplyr)
+get.significance <- function(p) {
+  chr.p <- "Not significant"
+    if (p < .05) {
+        chr.p <- "P<.05"
+      }
+      if (p < .01) {
+        chr.p <- "P<.01"
+      }
+      if (p < .001) {
+        chr.p <- "P<.001"
+      }
+      if (p < .0001) {
+        chr.p <- "P<.0001"
+      }
+  return(chr.p)
+}
+
+perform_t.tests <- function(metrics, test.high=T, test.low=T) {
+  ThresholdTests.high <- data.frame(Metric=character(),
+                   Significance=double(), 
+                   Significant=logical(),
+                   Difference=character(), 
+                   stringsAsFactors=FALSE)
+  
+  ThresholdTests.low <- data.frame(Metric=character(),
+                   Significance=double(), 
+                   Significant=logical(),
+                   Difference=character(), 
+                   stringsAsFactors=FALSE)
+  
+  low <- metrics[metrics$threshold == "Low",]
+  normal <- metrics[metrics$threshold == "Norm",]
+  high <- metrics[metrics$threshold == "High",]
+  
+  low <-low %>% select(!threshold)
+  normal <- normal %>% select(!threshold)
+  high <-high %>% select(!threshold)
+  for (name in colnames(normal)) {
+  
+    #get values per group from column
+    dat.norm <- as.matrix(normal[name])[,1]
+    dat.low <- as.matrix(low[name][1])[,1]
+    dat.high <-as.matrix(high[name][1])[,1]
+    if (test.high){
+      #preform high threshold vs normal test
+      t <-t.test(dat.norm, dat.high, paired = F)
+    
+      #add to table
+      ThresholdTests.high[nrow(ThresholdTests.high) + 1,] <- c(name,t$p.value, t$p.value < 0.05, mean(dat.high) - mean(dat.norm))
+    }
+    if (test.low){
+    #perform low threshold vs normal rest
+    t <-t.test(normal[name], low[name], paired = F)
+    
+    #add to table
+    ThresholdTests.low[nrow(ThresholdTests.low) + 1,] <- c(name,t$p.value, t$p.value < 0.05,  mean(dat.low) - mean(dat.norm))
+    }
+  }
+  if (test.high){
+    if (test.low){
+      l <- list(
+      ThresholdTests.high,
+      ThresholdTests.low
+        )
+      return(l)
+    }else {
+      return(ThresholdTests.high)
+    }
+  } else {
+      return(ThresholdTests.low)
+    }
+}
+
+res <- perform_t.tests(metric.list.NextSeq[-c(1:3)])
+
+res[[1]][res[[1]]$Significant == T,]
+res[[2]][res[[2]]$Significant == T,]
+
+```
+
+
+
+```{r}
+
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+library(scales)
+
+metric.list.MiSeq$threshold <- unlist(lapply(metric.list.MiSeq$A260_280, function(x) {
   val <- x
   if (val > 2.0) {
     return("High")
   }
   if (val < 1.8) {
+    return("Low")
+  }
+  return("Norm")
+}))
+
+remove_outliers_high <- function(x, na.rm = TRUE, ...) {
+  qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
+  H <- 1.5 * IQR(x, na.rm = na.rm)
+  y <- x
+  y[x > (qnt[2] + H)] <- NA
+  y
+}
+remove_outliers_low <- function(x, na.rm = TRUE, ...) {
+  qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
+  H <- 1.5 * IQR(x, na.rm = na.rm)
+  y <- x
+  y[x < (qnt[1] - H)] <- NA
+  y
+}
+
+remove_outliers_norm <- function(x, na.rm = TRUE, ...) {
+  qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
+  H <- 1.5 * IQR(x, na.rm = na.rm)
+  y <- x
+  y[x < (qnt[1] - H)] <- NA
+  y[x > (qnt[2] + H)] <- NA
+  y
+}
+
+head(metric.list.MiSeq)
+
+prebam <- c(4:9)
+postbam <- c(10:24)
+
+metric.list.MiSeq.outlier <- metric.list.MiSeq
+metric.list.MiSeq.outlier[metric.list.MiSeq$threshold == "High",][c(2,prebam,postbam)] <- as.data.frame(apply(metric.list.MiSeq[metric.list.MiSeq$threshold == "High",][c(2,prebam,postbam)], 2, remove_outliers_norm))
+
+metric.list.MiSeq.outlier[metric.list.MiSeq$threshold == "Norm",][c(2,prebam,postbam)] <- as.data.frame(apply(metric.list.MiSeq[metric.list.MiSeq$threshold == "Norm",][c(2,prebam, postbam)], 2, remove_outliers_norm))
+
+
+metric.list.MiSeq.outlier[metric.list.MiSeq$threshold == "Low",][c(2,prebam,postbam)] <- as.data.frame(apply(metric.list.MiSeq[metric.list.MiSeq$threshold == "Low",][c(2,prebam,postbam)], 2, remove_outliers_norm))
+
+metric.list.MiSeq.scaled <- na.omit(metric.list.MiSeq.outlier)
+metric.list.MiSeq.scaled
+metric.list.MiSeq.scaled[c(2:(ncol(metric.list.MiSeq.scaled) -1))] <- as.data.frame(apply(metric.list.MiSeq.scaled[c(2,prebam,postbam)], 2, function(x) {
+  rescale(x, to=c(-1,1))
+}))
+
+metric.list.MiSeq.scaled$threshold <- factor(metric.list.MiSeq.scaled$threshold, levels = c("High", "Norm", "Low"))
+df_melted = melt(metric.list.MiSeq.scaled[c(1,2,prebam,postbam, ncol(metric.list.MiSeq.scaled))], id.vars = c('UniqueID', 'threshold'), na.rm = TRUE)
+df_melted
+mean.lines <- ggplot(df_melted, aes(x = variable, y = value, fill = threshold)) +
+  geom_boxplot(alpha = 0.5) +
+  scale_fill_manual(values=c("red", "green", "blue"), name = "Threshold", labels = c("Above", "Between", "Below")) +
+  ggtitle("Mean scaled metric change", subtitle = "compared to the 260:280 threshold limits (MiSeq)") + 
+  ylab("Change from center") + 
+  theme(axis.text.x=element_text(angle = 90, size = 15),
+        plot.title = element_text(size = 20),
+        plot.subtitle = element_text(size = 15),
+        legend.text = element_text(size = 10),
+        axis.text.y = element_text(size = 12),
+        axis.title.y = element_text(size = 15 )) 
+
+mean.lines
+
+ggsave(
+  "MiSeq_threshold_change.png",
+  plot = mean.lines,
+  limitsize = TRUE,
+  scale = 1,
+  width = 14,
+  height = 7
+)
+
+
+```
+
+```{r}
+res <- perform_t.tests(metric.list.MiSeq[-c(1:3)])
+
+res[[1]][res[[1]]$Significant == T,]
+res[[2]][res[[2]]$Significant == T,]
+
+```
+
+
+
+```{r}
+metric.list.NextSeq$threshold <- unlist(lapply(metric.list.NextSeq$A260_230, function(x) {
+  val <- x
+  if (val > 2.2) {
+    return("High")
+  }
+  if (val < 1.5) {
+    return("Low")
+  }
+  return("Norm")
+}))
+
+metric.list.NextSeq.outlier <- metric.list.NextSeq
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "High",][c(3,prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "High",][c(3,prebam,postbam)], 2, remove_outliers_norm))
+
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "Norm",][c(3,prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",][c(3,prebam,postbam)], 2, remove_outliers_norm))
+
+
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "Low",][c(3,prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",][c(3,prebam,postbam)], 2, remove_outliers_norm))
+
+metric.list.NextSeq.scaled <- na.omit(metric.list.NextSeq.outlier)
+metric.list.NextSeq.scaled[c(3:(ncol(metric.list.MiSeq.scaled) -1))] <- as.data.frame(apply(metric.list.NextSeq.scaled[c(3,prebam,postbam)], 2, function(x) {
+  rescale(x, to=c(-1,1))
+}))
+
+metric.list.NextSeq.scaled$threshold <- factor(metric.list.NextSeq.scaled$threshold, levels = c("High", "Norm", "Low"))
+df_melted = melt(metric.list.NextSeq.scaled[-2], id.vars = c('UniqueID', 'threshold'), na.rm = TRUE)
+df_melted
+mean.lines <- ggplot(df_melted, aes(x = variable, y = value, fill = threshold)) +
+  geom_boxplot(alpha = 0.5) +
+  scale_fill_manual(values=c("red", "green", "blue"), name = "Threshold", labels = c("Above", "Between", "Below")) +
+  ggtitle("Mean scaled metric change", subtitle = "compared to the 260:230 threshold limits (NextSeq)") + 
+  ylab("Change from center") + 
+  theme(axis.text.x=element_text(angle = 90, size = 15),
+        plot.title = element_text(size = 20),
+        plot.subtitle = element_text(size = 15),
+        legend.text = element_text(size = 10),
+        axis.text.y = element_text(size = 12),
+        axis.title.y = element_text(size = 15 )) 
+
+mean.lines
+
+ggsave(
+  "NextSeq_threshold260:230_change.png",
+  plot = mean.lines,
+  limitsize = TRUE,
+  scale = 1,
+  width = 14,
+  height = 7
+)
+```
+
+```{r}
+res <- perform_t.tests(metric.list.NextSeq[-c(1:3)])
+
+res[[1]][res[[1]]$Significant == T,]
+res[[2]][res[[2]]$Significant == T,]
+```
+
+```{r}
+
+sd.Intens <- sd(metric.list.NextSeq$Intensity)
+me.intens <- mean(metric.list.NextSeq$Intensity)
+metric.list.NextSeq$threshold <- unlist(lapply(metric.list.NextSeq$Intensity, function(x, th=sd.Intens, center=me.intens) {
+  val <- x
+  if (val > (center + (th* 2))) {
+    return("High")
+  }
+  if (val < (center - (th*2))) {
+    return("Low")
+  }
+  return("Norm")
+}))
+
+
+
+
+
+
+metric.list.NextSeq.scaled <- na.omit(metric.list.NextSeq.outlier)
+metric.list.NextSeq.scaled[c(prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq.scaled[c(prebam,postbam)], 2, function(x) {
+  rescale(x, to=c(-1,1))
+}))
+
+metric.list.NextSeq.scaled$threshold <- factor(metric.list.NextSeq.scaled$threshold, levels = c("High", "Norm", "Low"))
+df_melted = melt(metric.list.NextSeq.scaled[-c(2, 3)], id.vars = c('UniqueID', 'threshold'), na.rm = TRUE)
+df_melted
+mean.lines <- ggplot(df_melted, aes(x = variable, y = value, fill = threshold)) +
+  geom_boxplot(alpha = 0.5) +
+  scale_fill_manual(values=c("red", "green", "blue"), name = "Threshold", labels = c("Above", "Between", "Below")) +
+  ggtitle("Mean scaled metric change", subtitle = "compared to the Intensity thresholds 2 * SD (NextSeq)") + 
+  ylab("Change from center") + 
+  theme(axis.text.x=element_text(angle = 90, size = 15),
+        plot.title = element_text(size = 20),
+        plot.subtitle = element_text(size = 15),
+        legend.text = element_text(size = 10),
+        axis.text.y = element_text(size = 12),
+        axis.title.y = element_text(size = 15 )) 
+
+mean.lines
+
+ggsave(
+  "NextSeq_thresholdIntensity_change.png",
+  plot = mean.lines,
+  limitsize = TRUE,
+  scale = 1,
+  width = 14,
+  height = 7
+)
+```
+
+```{r}
+res <- perform_t.tests(metric.list.NextSeq[-c(1,2,3,4)], test.low = F)
+
+res[res$Significant == T, ]
+```
+
+```{r}
+
+me.prephasing <- median(metric.list.NextSeq$PrePhasing)
+metric.list.NextSeq$threshold <- unlist(lapply(metric.list.NextSeq$PrePhasing, function(x, center=me.prephasing) {
+  val <- x
+  if (val > center) {
+    return("High")
+  }
+  return("Norm")
+}))
+
+metric.list.NextSeq.outlier <- metric.list.NextSeq
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "High",][c(prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "High",][c(prebam,postbam)], 2, remove_outliers_norm))
+
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "Norm",][c(prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",][c(prebam,postbam)], 2, remove_outliers_norm))
+
+
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "Low",][c(prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",][c(prebam,postbam)], 2, remove_outliers_norm))
+
+metric.list.NextSeq.scaled <- na.omit(metric.list.NextSeq.outlier)
+metric.list.NextSeq.scaled[c(prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq.scaled[c(prebam,postbam)], 2, function(x) {
+  rescale(x, to=c(-1,1))
+}))
+
+
+metric.list.NextSeq.scaled$threshold <- factor(metric.list.NextSeq.scaled$threshold, levels = c("High", "Norm", "Low"))
+df_melted = melt(metric.list.NextSeq.scaled[-c(2:3)][c(1,3,4,2,5:23)], id.vars = c('UniqueID', 'threshold'), na.rm = TRUE)
+df_melted
+mean.lines <- ggplot(df_melted, aes(x = variable, y = value, fill = threshold)) +
+  geom_boxplot(alpha = 0.5) +
+  scale_fill_manual(values=c("red", "green", "blue"), name = "Threshold", labels = c("Above", "Normal", "Below")) +
+  ggtitle("Mean scaled metric change", subtitle = "compared to the Prephasing median threshold (NextSeq)") + 
+  ylab("Change from center") + 
+  theme(axis.text.x=element_text(angle = 90, size = 15),
+        plot.title = element_text(size = 20),
+        plot.subtitle = element_text(size = 15),
+        legend.text = element_text(size = 10),
+        axis.text.y = element_text(size = 12),
+        axis.title.y = element_text(size = 15 )) 
+
+mean.lines
+
+ggsave(
+  "NextSeq_thresholdPrephasing_change.png",
+  plot = mean.lines,
+  limitsize = TRUE,
+  scale = 1,
+  width = 14,
+  height = 7
+)
+```
+
+```{r}
+
+res <- perform_t.tests(metric.list.NextSeq[-c(1:3,5,6)], test.low = F)
+
+res[res$Significant == T,]
+```
+
+```{r}
+
+me.phasing <- median(metric.list.NextSeq$Phasing)
+metric.list.NextSeq$threshold <- unlist(lapply(metric.list.NextSeq$Phasing, function(x, center=me.phasing) {
+  val <- x
+  if (val > center) {
+    return("High")
+  }
+  return("Norm")
+}))
+
+metric.list.NextSeq.outlier <- metric.list.NextSeq
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "High",][c(prebam,postbam)]
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "High",][c(prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "High",][c(prebam,postbam)], 2, remove_outliers_norm))
+
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "Norm",][c(prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",][c(prebam,postbam)], 2, remove_outliers_norm))
+
+
+metric.list.NextSeq.scaled <- na.omit(metric.list.NextSeq.outlier)
+
+metric.list.NextSeq.scaled[c(prebam, postbam)] <- as.data.frame(apply(metric.list.NextSeq.scaled[c(prebam, postbam)], 2, function(x) {
+  rescale(x, to=c(-1,1))
+}))
+
+metric.list.NextSeq.scaled[metric.list.NextSeq.scaled$threshold == "Norm",]
+metric.list.NextSeq.scaled$threshold <- factor(metric.list.NextSeq.scaled$threshold, levels = c("High", "Norm", "Low"))
+df_melted = melt(metric.list.NextSeq.scaled[c(1,6,5,7:25)], id.vars = c('UniqueID', 'threshold'), na.rm = TRUE)
+df_melted
+mean.lines <- ggplot(df_melted, aes(x = variable, y = value, fill = threshold)) +
+  geom_boxplot(alpha = 0.5) +
+  scale_fill_manual(values=c("red", "green", "blue"), name = "Threshold", labels = c("Above", "Normal", "Below")) +
+  ggtitle("Mean scaled metric change", subtitle = "compared to the Phasing higher threshold") + 
+  ylab("Change from center") + 
+  theme(axis.text.x=element_text(angle = 90, size = 15),
+        plot.title = element_text(size = 20),
+        plot.subtitle = element_text(size = 15),
+        legend.text = element_text(size = 10),
+        axis.text.y = element_text(size = 12),
+        axis.title.y = element_text(size = 15 )) 
+
+mean.lines
+
+ggsave(
+  "NextSeq_thresholdPhasing_change.png",
+  plot = mean.lines,
+  limitsize = TRUE,
+  scale = 1,
+  width = 14,
+  height = 7
+)
+```
+
+```{r}
+
+res <- perform_t.tests(metric.list.NextSeq[-c(1:3, 5,6)], test.low = F)
+
+res
+```
+
+
+
+```{r}
+metric.list.NextSeq$threshold <- unlist(lapply(metric.list.NextSeq$ClusterDensity, function(x) {
+  val <- x
+  if (val > 220) {
+    return("High")
+  }
+  if (val < 170) {
+    return("Low")
+  }
+  return("Norm")
+}))
+
+metric.list.NextSeq.outlier <- metric.list.NextSeq
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "High",][c(prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "High",][c(prebam,postbam)], 2, remove_outliers_norm))
+
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "Norm",][c(prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",][c(prebam,postbam)], 2, remove_outliers_norm))
+
+
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "Low",][c(prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",][c(prebam,postbam)], 2, remove_outliers_norm))
+
+metric.list.NextSeq.scaled <- na.omit(metric.list.NextSeq.outlier)
+metric.list.NextSeq.scaled[c(prebam,postbam)] <- as.data.frame(apply(metric.list.NextSeq.scaled[c(prebam,postbam)], 2, function(x) {
+  rescale(x, to=c(-1,1))
+}))
+
+
+metric.list.NextSeq.scaled$threshold <- factor(metric.list.NextSeq.scaled$threshold, levels = c("High", "Norm", "Low"))
+df_melted = melt(metric.list.NextSeq.scaled[c(1,7,5,6,4, 8:21)], id.vars = c('UniqueID', 'threshold'), na.rm = TRUE)
+df_melted
+mean.lines <- ggplot(df_melted, aes(x = variable, y = value, fill = threshold)) +
+  geom_boxplot(alpha = 0.5) +
+  scale_fill_manual(values=c("red", "green", "blue"), name = "Threshold", labels = c("Above", "Between", "Below")) +
+  ggtitle("Mean scaled metric change", subtitle = "compared to the Cluster density thresholds 170-220 K/mm2") + 
+  ylab("Change from center") + 
+  theme(axis.text.x=element_text(angle = 90, size = 15),
+        plot.title = element_text(size = 20),
+        plot.subtitle = element_text(size = 15),
+        legend.text = element_text(size = 10),
+        axis.text.y = element_text(size = 12),
+        axis.title.y = element_text(size = 15 )) 
+
+mean.lines
+
+ggsave(
+  "NextSeq_thresholdClusterDensity_change.png",
+  plot = mean.lines,
+  limitsize = TRUE,
+  scale = 1,
+  width = 14,
+  height = 7
+)
+```
+```{r}
+
+res <- perform_t.tests(metric.list.NextSeq[-c(1:3, 7)])
+
+res[[1]][res[[1]]$Significant == T,]
+res[[2]][res[[2]]$Significant == T,]
+```
+
+```{r}
+
+medi <- median(metric.list.NextSeq$Average_Q30)
+metric.list.NextSeq$Aver
+metric.list.NextSeq$threshold <- unlist(lapply(metric.list.NextSeq$Average_Q30, function(x, med=medi) {
+  val <- x
+  if (val < med) {
+    return("Low")
+  }
+  return("Norm")
+}))
+
+metric.list.NextSeq$th
+metric.list.NextSeq.outlier <- metric.list.NextSeq
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "High",][-c(1,21)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "High",][-c(1,21)], 2, remove_outliers_norm))
+
+metric.list.NextSeq.outlier
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "Norm",][-c(1,21)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",][-c(1,21)], 2, remove_outliers_norm))
+
+
+metric.list.NextSeq.outlier[metric.list.NextSeq$threshold == "Low",][-c(1,21)] <- as.data.frame(apply(metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",][-c(1,21)], 2, remove_outliers_norm))
+
+metric.list.NextSeq.scaled <- na.omit(metric.list.NextSeq.outlier)[-2]
+metric.list.NextSeq.scaled[-c(1,20)] <- as.data.frame(apply(metric.list.NextSeq.scaled[-c(1,20)], 2, function(x) {
+  rescale(x, to=c(-1,1))
+}))
+
+
+metric.list.NextSeq.scaled$threshold <- factor(metric.list.NextSeq.scaled$threshold, levels = c("Norm", "Low"))
+df_melted = melt(metric.list.NextSeq.scaled[-c(2)][c(1,6,3,4,2,5,7:19)], id.vars = c('UniqueID', 'threshold'), na.rm = TRUE)
+df_melted
+mean.lines <- ggplot(df_melted, aes(x = variable, y = value, fill = threshold)) +
+  geom_boxplot(alpha = 0.5) +
+  scale_fill_manual(values=c("green", "blue"), name = "Threshold", labels = c("Normal", "Below")) +
+  ggtitle("Mean scaled metric change", subtitle = "compared to the Q30 threshold lower than median: 90.025 %") + 
+  ylab("Change from center") + 
+  theme(axis.text.x=element_text(angle = 90, size = 15),
+        plot.title = element_text(size = 20),
+        plot.subtitle = element_text(size = 15),
+        legend.text = element_text(size = 10),
+        axis.text.y = element_text(size = 12),
+        axis.title.y = element_text(size = 15 )) 
+
+mean.lines
+
+ggsave(
+  "NextSeq_thresholdQ30_change.png",
+  plot = mean.lines,
+  limitsize = TRUE,
+  scale = 1,
+  width = 14,
+  height = 7
+)
+```
+
+```{r}
+
+res <- perform_t.tests(metric.list.NextSeq[-c(1:3,8)], test.high = F)
+
+res[res$Significant == T,]
+```
+
+
+```{r}
+range02 <- function(x){ (x - min(x))/(max(x)-min(x)) * (1 - -1) + -1 }
+
+complete.data.edit$FractionDuplicates <- (1 - complete.data.edit$PFuniqueReads/complete.data.edit$TotalReads.x)
+metric.list <- complete.data.edit %>% select(UniqueID,A260_280, A260_230, ClusterDensity, Phasing, PrePhasing, Intensity, TargetBasesPct20X, OnBaitVSselected, PFmismatchRate, ExcMapQPct, MedianTargetCoverage, HetSNPsensitivity, StrandBalance, StandardDeviation, ChimerasPercentage, PFUQaligned, MeanSize, FractionDuplicates, Instrument)
+
+metric.list[metric.list$Instrument == "NB500917R",]$Instrument <- "NextSeq"
+
+metric.list$Instrument <- droplevels(metric.list$Instrument)
+
+metric.list.NextSeq <- metric.list[metric.list$Instrument == "NextSeq",]
+metric.list.MiSeq <- metric.list[metric.list$Instrument == "NextSeq",]
+
+metric.list.NextSeq <- metric.list.NextSeq %>% select(!Instrument)
+metric.list.MiSeq <- metric.list.MiSeq%>% select(!Instrument)
+
+metric.list.NextSeq.scaled <- as.data.frame(apply(metric.list.NextSeq, 2, range02))
+sd.ClusterDensity <- sd(metric.list.NextSeq$ClusterDensity)
+me.ClusterDensity <- mean(metric.list.NextSeq$ClusterDensity)
+metric.list.NextSeq$threshold <- unlist(lapply(metric.list.NextSeq$ClusterDensity, function(x, th=sd.ClusterDensity, center=me.ClusterDensity) {
+  val <- x
+  if (val > (center + (th* 2))) {
+    return("High")
+  }
+  if (val < (center + (th*-2))) {
+    return("Low")
+  }
+  return("Norm")
+}))
+
+metric.list.NextSeq.scaled$threshold <- unlist(lapply(metric.list.NextSeq$ClusterDensity, function(x, th=sd.ClusterDensity, center=me.ClusterDensity) {
+  val <- x
+  if (val > (center + (th* 2))) {
+    return("High")
+  }
+  if (val < (center + (th*-2))) {
     return("Low")
   }
   return("Norm")
@@ -732,280 +1813,65 @@ df <- high
 df[2,] <- low
 df[3,] <- normal
 
-df
+df <- df[-c(2:3)]
+
 df_melted = melt(df, id.vars = c('UniqueID', 'threshold'))
 mean.lines <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#f22116", "#16f2b7", "#49f216")) + 
-  theme(axis.text.x=element_text(angle = 90))
+  theme(axis.text.x=element_text(angle = 90)) + ggtitle("Mean scaled metric change", subtitle = "compared to the metrics exceeding 2 * SD (NextSeq)") 
 
 mean.lines
 
+ggsave(
+  "NextSeq_threshold_change_ClusterDensity.png",
+  plot = mean.lines,
+  dpi = 300,
+  limitsize = TRUE,
+)
 ```
-* Intensity seems to differ
-* Prephasing seems to differ
-* Mismatch rate seems to differ
-* Median target coverage seems to differ
-* Mean insert Size seems to differ
-* Number of aligned reads seem to differ
-* Fraction of duplicates seem to differ
-
-
-### Tests For intensity
-```{r}
-normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
-high <- metric.list.NextSeq[metric.list.NextSeq$threshold == "High",]
-t <-t.test(normal$Intensity, high$Intensity, paired = F)
-
-t
-
-difference <- mean(normal$Intensity) - mean(high$Intensity)
-difference
-```
-Exeeding a higher threshold of 2.0 on the 260:280 ratio does not significantly change the sequencing intensity of NextSeq machines
 
 ```{r}
-low <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",]
-normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
+range02 <- function(x){ (x - min(x))/(max(x)-min(x)) * (1 - -1) + -1 }
 
-t <-t.test(normal$Intensity, low$Intensity, paired = F)
+complete.data.edit$FractionDuplicates <- (1 - complete.data.edit$PFuniqueReads/complete.data.edit$TotalReads.x)
+metric.list <- complete.data.edit %>% select(UniqueID,A260_280, A260_230, Phasing, PrePhasing, Intensity, ClusterDensity, TargetBasesPct20X, OnBaitVSselected, PFmismatchRate, ExcMapQPct, MedianTargetCoverage, HetSNPsensitivity, StrandBalance, StandardDeviation, ChimerasPercentage, PFUQaligned, MeanSize, FractionDuplicates, Instrument)
 
+metric.list[metric.list$Instrument == "NB500917R",]$Instrument <- "NextSeq"
 
-t
+metric.list$Instrument <- droplevels(metric.list$Instrument)
 
-difference <- mean(normal$Intensity) - mean(low$Intensity)
-difference
-```
-Exceeding the lower threshold of 1.8 significantly lowers the sequencing intensity in NextSeq machines, on average by 916, with a p-value of 0.029 
+metric.list.NextSeq <- metric.list[metric.list$Instrument == "NextSeq",]
+metric.list.MiSeq <- metric.list[metric.list$Instrument == "NextSeq",]
 
-### Tests for PrePhasing
-```{r}
-normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
-high <- metric.list.NextSeq[metric.list.NextSeq$threshold == "High",]
-t <-t.test(normal$PrePhasing, high$PrePhasing, paired = F)
+metric.list.NextSeq <- metric.list.NextSeq %>% select(!Instrument)
+metric.list.MiSeq <- metric.list.MiSeq%>% select(!Instrument)
 
-t
-
-difference <- mean(normal$PrePhasing) - mean(high$PrePhasing)
-difference
-```
-Exeeding a higher threshold of 2.0 on the 260:280 ratio does not significantly change the Prephasing precentage of NextSeq machines
-
-```{r}
-low <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",]
-normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
-
-t <-t.test(normal$PrePhasing, low$PrePhasing, paired = F)
-
-
-t
-
-difference <- mean(normal$PrePhasing) - mean(low$PrePhasing)
-difference
-```
-Exceeding the lower threshold of 1.8 does not alter the prephasing percentage in NextSeq machines, with a p-value of 0.054 > 0.05.
-
-### Tests for Mismatch rate
-
-```{r}
-normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
-high <- metric.list.NextSeq[metric.list.NextSeq$threshold == "High",]
-t <-t.test(normal$PFmismatchRate, high$PFmismatchRate, paired = F)
-
-t
-
-difference <- mean(normal$PFmismatchRate) - mean(high$PFmismatchRate)
-difference
-```
-Exeeding a higher threshold of 2.0 on the 260:280 ratio does not significantly change the mismatch rate in NextSeq machines with a p-value = 0.83 > 0.05
-
-```{r}
-low <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",]
-normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
-
-t <-t.test(normal$PFmismatchRate, low$PFmismatchRate, paired = F)
-
-
-t
-
-difference <- mean(normal$PFmismatchRate) - mean(low$PFmismatchRate)
-difference
-```
-Exceeding the lower threshold of 1.8 does significantly lowers the mismatch Rate slightly by 0.13 % in NextSeq machines, with a p-value of 1.79e-14 < 0.05.
-
-### Tests for Median target coverage
-```{r}
-normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
-high <- metric.list.NextSeq[metric.list.NextSeq$threshold == "High",]
-t <-t.test(normal$MedianTargetCoverage, high$MedianTargetCoverage, paired = F)
-
-t
-
-difference <- mean(normal$MedianTargetCoverage) - mean(high$MedianTargetCoverage)
-difference
-```
-Exeeding a higher threshold of 2.0 on the 260:280 ratio significantly increases the MedianTargetCoverage on average by 25 on NextSeq machines, with p-value of 0.0016 < 0.05. 
-
-```{r}
-low <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",]
-normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
-
-t <-t.test(normal$MedianTargetCoverage, low$MedianTargetCoverage, paired = F)
-
-
-t
-
-difference <- mean(normal$MedianTargetCoverage) - mean(low$MedianTargetCoverage)
-difference
-```
-Exceeding the lower threshold of 1.8 does significantly the Median Target Coverage in NextSeq machines, with a p-value of < 2.2e-16. 
-I doubt that this is correct, while yes significance exists, you would not expect the target coverage to increase with a lower quality sample. I suspect there are more factors at play for the target coverage.
-
-### Tests for Mean insert Size 
-
-```{r}
-normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
-high <- metric.list.NextSeq[metric.list.NextSeq$threshold == "High",]
-t <-t.test(normal$MeanSize, high$MeanSize, paired = F)
-
-t
-
-difference <- mean(normal$MeanSize) - mean(high$MeanSize)
-difference
-```
-Exceeding the higher threshold of 2.0 significantly impacts the mean insert size, on average by 10.5, with a p-value of 0.006 < 0.05
-
-```{r}
-low <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",]
-normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
-
-t <-t.test(normal$MeanSize, low$MeanSize, paired = F)
-
-
-t
-
-difference <- mean(normal$MeanSize) - mean(low$MeanSize)
-difference
-```
-Exceeding the lower threshold of 1.8 does  alter the mean insert size, on average by 19.8 in NextSeq machines, with a p-value of < 2.2e-16. My recommendation however is to not lower your sample purity for a higher insert size.
-
-### aligned reads Tests
-
-```{r}
-normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
-high <- metric.list.NextSeq[metric.list.NextSeq$threshold == "High",]
-t <-t.test(normal$PFUQaligned, high$PFUQaligned, paired = F)
-
-t
-
-difference <- mean(normal$PFUQaligned) - mean(high$PFUQaligned)
-difference
-```
-Exeeding a higher threshold of 2.0 on the 260:280 ratio does not significantly change the number of aligned reads in NextSeq machines
-
-```{r}
-low <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",]
-normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
-
-t <-t.test(normal$PFUQaligned, low$PFUQaligned, paired = F)
-
-
-t
-
-difference <- mean(normal$PFUQaligned) - mean(low$PFUQaligned)
-difference
-```
-Exceeding the lower threshold of 1.8 significantly lowers the number of aligned reads by 23805717 on average, with a p-value of 2.365e-15 < 0.05
-
-### Tests For Duplicates
-
-```{r}
-normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
-high <- metric.list.NextSeq[metric.list.NextSeq$threshold == "High",]
-t <-t.test(normal$PrePhasing, high$PrePhasing, paired = F)
-
-t
-
-difference <- mean(normal$FractionDuplicates) - mean(high$FractionDuplicates)
-difference
-```
-Exeeding a higher threshold of 2.0 on the 260:280 ratio does not significantly change the number of duplicates in NextSeq machines
-
-```{r}
-low <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Low",]
-normal <- metric.list.NextSeq[metric.list.NextSeq$threshold == "Norm",]
-
-t <-t.test(normal$FractionDuplicates, low$FractionDuplicates, paired = F)
-
-
-t
-
-difference <- mean(normal$FractionDuplicates) - mean(low$FractionDuplicates)
-difference
-```
-Exceeding the lower threshold of 1.8 significantly increases the number of duplicates, on average by 2.3 %, with a p-value of 0.007158 < 0.05
-
-
-```{r}
-metric.list.MiSeq.scaled <- as.data.frame(apply(metric.list.NextSeq, 2, range02))
-metric.list.MiSeq.scaled$threshold <- unlist(lapply(metric.list.NextSeq$A260_280, function(x) {
+metric.list.NextSeq.scaled <- as.data.frame(apply(metric.list.NextSeq, 2, range02))
+sd.TargetBasesPct20X <- sd(metric.list.NextSeq$TargetBasesPct20X)
+me.TargetBasesPct20X <- mean(metric.list.NextSeq$TargetBasesPct20X)
+metric.list.NextSeq$threshold <- unlist(lapply(metric.list.NextSeq$TargetBasesPct20X, function(x, th=sd.TargetBasesPct20X, center=me.TargetBasesPct20X) {
   val <- x
-  if (val > 2.0) {
+  if (val > (center + (th* 2))) {
     return("High")
   }
-  if (val < 1.8) {
-    return("Low")
-  }
-  return("Normal")
-}))
-metric.list.MiSeq.scaled$UniqueID <- metric.list.NextSeq$UniqueID
-
-df_melted = melt(metric.list.MiSeq.scaled[metric.list.MiSeq.scaled$threshold == "High",], id.vars = c('UniqueID', 'threshold'))
-avail.high <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#f22116", "#16f2b7", "#49f216", "#165ff2")) +
-  theme(axis.text.x=element_text(angle = 90))
-
-df_melted = melt(metric.list.MiSeq.scaled[metric.list.MiSeq.scaled$threshold == "Low",], id.vars = c('UniqueID', 'threshold'))
-avail.low <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#16f2b7")) + 
-  theme(axis.text.x=element_text(angle = 90))
-
-
-
-df_melted = melt(metric.list.MiSeq.scaled[metric.list.MiSeq.scaled$threshold == "Normal",], id.vars = c('UniqueID', 'threshold'))
-avail.Normal <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#49f216")) + 
-  theme(axis.text.x=element_text(angle = 90))
-
-avail.high
-avail.Normal
-avail.low
-```
-
-## MiSeq Machines
-
-```{r}
-metric.list.MiSeq.scaled <- as.data.frame(apply(metric.list.MiSeq, 2, range02))
-
-metric.list.MiSeq$threshold <- unlist(lapply(metric.list.MiSeq$A260_280, function(x) {
-  val <- x
-  if (val > 2.0) {
-    return("High")
-  }
-  if (val < 1.8) {
+  if (val < (center + (th*-2))) {
     return("Low")
   }
   return("Norm")
 }))
 
-metric.list.MiSeq.scaled$threshold <- unlist(lapply(metric.list.MiSeq$A260_280, function(x) {
+metric.list.NextSeq.scaled$threshold <- unlist(lapply(metric.list.NextSeq$TargetBasesPct20X, function(x, th=sd.TargetBasesPct20X, center=me.TargetBasesPct20X) {
   val <- x
-  if (val > 2.0) {
+  if (val > (center + (th* 2))) {
     return("High")
   }
-  if (val < 1.8) {
+  if (val < (center + (th*-2))) {
     return("Low")
   }
   return("Norm")
 }))
 
-metric.list.MiSeq.scaled$UniqueID <- metric.list.MiSeq$UniqueID
-high.scaled <- metric.list.MiSeq.scaled[metric.list.MiSeq.scaled$threshold == "High",]
+metric.list.NextSeq.scaled$UniqueID <- metric.list.NextSeq$UniqueID
+high.scaled <- metric.list.NextSeq.scaled[metric.list.NextSeq.scaled$threshold == "High",]
 
 
 a <- as.vector(apply(high.scaled[-c(1,20)], 2, mean))
@@ -1020,7 +1886,7 @@ df_melted = melt(high.scaled, id.vars = c('UniqueID', 'threshold'))
 avail.high <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#f22116", "#000000")) +
   theme(axis.text.x=element_text(angle = 90))
 
-low.scaled <- metric.list.MiSeq.scaled[metric.list.MiSeq.scaled$threshold == "Low",]
+low.scaled <- metric.list.NextSeq.scaled[metric.list.NextSeq.scaled$threshold == "Low",]
 a <- as.vector(apply(low.scaled[-c(1,20)], 2, mean))
 
 
@@ -1034,7 +1900,7 @@ avail.low <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(col
   theme(axis.text.x=element_text(angle = 90))
 
 
-normal.scaled <- metric.list.MiSeq.scaled[metric.list.MiSeq.scaled$threshold == "Norm",]
+normal.scaled <- metric.list.NextSeq.scaled[metric.list.NextSeq.scaled$threshold == "Norm",]
 a <- as.vector(apply(normal.scaled[-c(1,20)], 2, mean))
 
 normal.scaled[nrow(normal.scaled) + 1,][-c(1,20)] <- a
@@ -1045,7 +1911,7 @@ df_melted = melt(normal.scaled, id.vars = c('UniqueID', 'threshold'))
 avail.Normal <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#49f216", "#000000")) + 
   theme(axis.text.x=element_text(angle = 90))
 
-avail.high
+
 avail.Normal
 avail.low
 
@@ -1060,15 +1926,137 @@ normal$threshold <- "Normal"
 normal$UniqueID <- 3
 
 
-df <- high
-df[2,] <- low
-df[3,] <- normal
+df <- low
+df[2,] <- normal
 
+df <- df[-c(2:7)]
 df
 df_melted = melt(df, id.vars = c('UniqueID', 'threshold'))
 mean.lines <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#f22116", "#16f2b7", "#49f216")) + 
-  theme(axis.text.x=element_text(angle = 90))
+  theme(axis.text.x=element_text(angle = 90)) + ggtitle("Mean scaled metric change", subtitle = "compared to the metrics exceeding 2 * SD (NextSeq)") 
 
 mean.lines
 
+ggsave(
+  "NextSeq_threshold_change_TargetBasesPct20X.png",
+  plot = mean.lines,
+  dpi = 300,
+  limitsize = TRUE,
+)
+```
+
+```{r}
+range02 <- function(x){ (x - min(x))/(max(x)-min(x)) * (1 - -1) + -1 }
+
+complete.data.edit$FractionDuplicates <- (1 - complete.data.edit$PFuniqueReads/complete.data.edit$TotalReads.x)
+metric.list <- complete.data.edit %>% select(UniqueID,A260_280, A260_230, Phasing, PrePhasing, Intensity, ClusterDensity, PFmismatchRate, TargetBasesPct20X, OnBaitVSselected, ExcMapQPct, MedianTargetCoverage, HetSNPsensitivity, StrandBalance, StandardDeviation, ChimerasPercentage, PFUQaligned, MeanSize, FractionDuplicates, Instrument)
+
+metric.list[metric.list$Instrument == "NB500917R",]$Instrument <- "NextSeq"
+
+metric.list$Instrument <- droplevels(metric.list$Instrument)
+
+metric.list.NextSeq <- metric.list[metric.list$Instrument == "NextSeq",]
+metric.list.MiSeq <- metric.list[metric.list$Instrument == "NextSeq",]
+
+metric.list.NextSeq <- metric.list.NextSeq %>% select(!Instrument)
+metric.list.MiSeq <- metric.list.MiSeq%>% select(!Instrument)
+
+metric.list.NextSeq.scaled <- as.data.frame(apply(metric.list.NextSeq, 2, range02))
+sd.PFmismatchRate <- sd(metric.list.NextSeq$PFmismatchRate)
+me.PFmismatchRate <- mean(metric.list.NextSeq$PFmismatchRate)
+metric.list.NextSeq$threshold <- unlist(lapply(metric.list.NextSeq$PFmismatchRate, function(x, th=sd.PFmismatchRate, center=me.PFmismatchRate) {
+  val <- x
+  if (val > (center + (th* 2))) {
+    return("High")
+  }
+  if (val < (center + (th*-2))) {
+    return("Low")
+  }
+  return("Norm")
+}))
+
+metric.list.NextSeq.scaled$threshold <- unlist(lapply(metric.list.NextSeq$PFmismatchRate, function(x, th=sd.PFmismatchRate, center=me.PFmismatchRate) {
+  val <- x
+  if (val > (center + (th* 2))) {
+    return("High")
+  }
+  if (val < (center + (th*-2))) {
+    return("Low")
+  }
+  return("Norm")
+}))
+
+metric.list.NextSeq.scaled$UniqueID <- metric.list.NextSeq$UniqueID
+high.scaled <- metric.list.NextSeq.scaled[metric.list.NextSeq.scaled$threshold == "High",]
+
+
+a <- as.vector(apply(high.scaled[-c(1,20)], 2, mean))
+
+
+
+high.scaled[nrow(high.scaled) + 1,][-c(1,20)] <- a
+high.scaled[nrow(high.scaled),][,1] <- 9999
+high.scaled[nrow(high.scaled),][,20] <- "Mean"
+
+df_melted = melt(high.scaled, id.vars = c('UniqueID', 'threshold'))
+avail.high <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#f22116", "#000000")) +
+  theme(axis.text.x=element_text(angle = 90))
+
+low.scaled <- metric.list.NextSeq.scaled[metric.list.NextSeq.scaled$threshold == "Low",]
+a <- as.vector(apply(low.scaled[-c(1,20)], 2, mean))
+
+
+
+low.scaled[nrow(low.scaled) + 1,][-c(1,20)] <- a
+low.scaled[nrow(low.scaled),][,1] <- 9999
+low.scaled[nrow(low.scaled),][,20] <- "Mean"
+
+df_melted = melt(low.scaled, id.vars = c('UniqueID', 'threshold'))
+avail.low <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#16f2b7", "#000000")) + 
+  theme(axis.text.x=element_text(angle = 90))
+
+
+normal.scaled <- metric.list.NextSeq.scaled[metric.list.NextSeq.scaled$threshold == "Norm",]
+a <- as.vector(apply(normal.scaled[-c(1,20)], 2, mean))
+
+normal.scaled[nrow(normal.scaled) + 1,][-c(1,20)] <- a
+normal.scaled[nrow(normal.scaled),][,1] <- 9999
+normal.scaled[nrow(normal.scaled),][,20] <- "Mean"
+normal.scaled
+df_melted = melt(normal.scaled, id.vars = c('UniqueID', 'threshold'))
+avail.Normal <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#49f216", "#000000")) + 
+  theme(axis.text.x=element_text(angle = 90))
+
+avail.high
+avail.Normal
+
+high <- high.scaled[high.scaled$threshold == "Mean",]
+low <- low.scaled[low.scaled$threshold == "Mean",]
+normal <- normal.scaled[normal.scaled$threshold == "Mean",]
+high$threshold <- "High"
+high$UniqueID <- 1
+low$threshold <- "Low"
+low$UniqueID <- 2
+normal$threshold <- "Normal"
+normal$UniqueID <- 3
+
+
+df <- high
+
+df[2,] <- normal
+
+df <- df[-c(2:7)]
+
+df_melted = melt(df, id.vars = c('UniqueID', 'threshold'))
+mean.lines <- ggplot(df_melted, aes(x = variable, y = value)) + geom_line(aes(color = threshold, group = UniqueID)) + scale_color_manual(values = c("#f22116", "#16f2b7", "#49f216")) + 
+  theme(axis.text.x=element_text(angle = 90)) + ggtitle("Mean scaled metric change", subtitle = "compared to the metrics exceeding 2 * SD (NextSeq)") 
+
+mean.lines
+
+ggsave(
+  "NextSeq_threshold_change_PFmismatchRate.png",
+  plot = mean.lines,
+  dpi = 300,
+  limitsize = TRUE,
+)
 ```
